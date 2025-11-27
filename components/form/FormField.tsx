@@ -21,20 +21,27 @@ export function FormField<T extends FieldValues>({
         field: { onChange, onBlur, value },
         fieldState: { error },
       }) => (
-        <View className="w-full my-2">
-          <Text className="text-gray-700 font-medium mb-1 capitalize">
+        <View className="w-full mb-4">
+          <Text className="text-gray-700 font-semibold mb-2 text-sm">
             {label}
           </Text>
           <TextInput
-            className={`border text-black rounded-md p-3 w-full ${
-              error ? "border-red-500" : "border-gray-300"
+            className={`rounded-xl px-4 py-3.5 text-base text-gray-900 bg-gray-50 ${
+              error
+                ? "border-2 border-red-400"
+                : "border border-gray-200 focus:border-pink-400"
             }`}
+            placeholderTextColor="#9CA3AF"
             onBlur={onBlur}
             onChangeText={onChange}
             value={value}
             {...textInputProps}
           />
-          {error && <Text className="text-red-500 mt-1">{error.message}</Text>}
+          {error && (
+            <Text className="text-red-500 text-sm mt-1.5 ml-1">
+              {error.message}
+            </Text>
+          )}
         </View>
       )}
     />

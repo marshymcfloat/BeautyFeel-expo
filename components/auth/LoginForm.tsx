@@ -2,13 +2,40 @@ import { authLoginAction } from "@/lib/actions/authActions";
 import { authLoginSchema, LoginSchemaTypes } from "@/lib/zod-schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Check, LoaderCircle } from "lucide-react-native";
-import React from "react";
+import { Check, Loader2 } from "lucide-react-native";
+import React, { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { Pressable, Text, View } from "react-native";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { FormField } from "../form/FormField";
 import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+
+function LoadingSpinner({ color = "white" }: { color?: string }) {
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+      <Loader2 size={18} color={color} />
+    </Animated.View>
+  );
+}
 
 export default function LoginForm({
   onSuccess,
@@ -56,12 +83,13 @@ export default function LoginForm({
               action="success"
               variant="outline"
               nativeID={`toast-${id}`}
-              className="bg-white flex-row items-center gap-4 p-4 shadow-md  "
+              className="bg-white flex-row items-center gap-4 p-4 shadow-md"
             >
-              <Check color="green" size={20} className="mt-0.5" />
-
+              <View className="w-8 h-8 rounded-full bg-green-100 items-center justify-center">
+                <Check color="#22c55e" size={18} />
+              </View>
               <View className="flex-1 gap-1">
-                <ToastTitle className="text-black font-bold">
+                <ToastTitle className="text-gray-900 font-bold">
                   Login Successful
                 </ToastTitle>
                 <ToastDescription className="text-gray-600 text-xs">
@@ -102,6 +130,7 @@ export default function LoginForm({
         name="email"
         label="Email"
         placeholder="you@example.com"
+        placeholderTextColor="#9CA3AF"
         keyboardType="email-address"
         autoCapitalize="none"
       />
@@ -110,33 +139,40 @@ export default function LoginForm({
         control={control}
         name="password"
         label="Password"
-        placeholder="********"
+        placeholder="Enter your password"
+        placeholderTextColor="#9CA3AF"
         secureTextEntry
       />
 
       <Pressable
         onPress={handleSubmit(handleSubmission)}
         disabled={loginPending}
-        className={`bg-pink-500 rounded-md py-3 mt-4 ${
-          loginPending ? "opacity-50" : ""
-        }`}
+        className="mt-6 rounded-xl overflow-hidden active:opacity-90"
+        style={{ opacity: loginPending ? 0.7 : 1 }}
       >
-        <View className="flex-row justify-center items-center gap-2">
+        <LinearGradient
+          colors={["#ec4899", "#d946ef"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          className="py-4 items-center justify-center flex-row"
+        >
           {loginPending && (
-            <LoaderCircle className="animate-spin" color="white" size={16} />
+            <View className="mr-2">
+              <LoadingSpinner />
+            </View>
           )}
-          <Text className="text-white text-center font-bold">
-            {loginPending ? "Logging in..." : "Login"}
+          <Text className="text-white font-bold text-base">
+            {loginPending ? "Signing in..." : "Sign In"}
           </Text>
-        </View>
+        </LinearGradient>
       </Pressable>
 
       <Pressable
         onPress={() => onSuccess(false)}
         disabled={loginPending}
-        className="mt-4"
+        className="mt-4 py-3"
       >
-        <Text className="text-center text-gray-500">Cancel</Text>
+        <Text className="text-center text-gray-500 font-medium">Cancel</Text>
       </Pressable>
     </View>
   );
