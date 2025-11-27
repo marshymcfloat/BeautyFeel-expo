@@ -1,6 +1,5 @@
 import React from "react";
-import { Text, TextInput } from "react-native";
-import { View } from "react-native-reanimated/lib/typescript/Animated";
+import { Text, TextInput, View } from "react-native";
 
 export default function TextInputGroup({
   label,
@@ -12,12 +11,13 @@ export default function TextInputGroup({
   secureTextEntry: boolean;
 }) {
   return (
-    <View>
-      <Text>{label}</Text>
+    <View className="mb-4">
+      <Text className="text-gray-700 font-medium mb-1">{label}</Text>
       <TextInput
         placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
         secureTextEntry={secureTextEntry}
-        className="border border-black rounded-md p-2"
+        className="border border-gray-300 rounded-lg p-3 text-black bg-white"
       />
     </View>
   );
