@@ -1,192 +1,118 @@
-'use client';
-import React from 'react';
-import { createToastHook } from '@gluestack-ui/core/toast/creator';
-import { AccessibilityInfo, Text, View, ViewStyle } from 'react-native';
+"use client";
+import { createToastHook } from "@gluestack-ui/core/toast/creator";
 import {
-  tva,
-  withStyleContext,
-  useStyleContext,
-} from '@gluestack-ui/utils/nativewind-utils';
-import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
-import { cssInterop } from 'nativewind';
-import {
-  Motion,
   AnimatePresence,
+  Motion,
   MotionComponentProps,
-} from '@legendapp/motion';
+} from "@legendapp/motion";
+import React, { createContext, useContext, useMemo } from "react";
+import {
+  AccessibilityInfo,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from "react-native";
 
+// 1. Setup Motion View
 type IMotionViewProps = React.ComponentProps<typeof View> &
   MotionComponentProps<typeof View, ViewStyle, unknown, unknown, unknown>;
 
 const MotionView = Motion.View as React.ComponentType<IMotionViewProps>;
 
+// 2. Create the Hook
 const useToast = createToastHook(MotionView, AnimatePresence);
-const SCOPE = 'TOAST';
 
-cssInterop(MotionView, { className: 'style' });
+// 3. Define Context to pass variant/action down to children
+type ToastContextType = {
+  variant: "solid" | "outline";
+  action: "error" | "warning" | "success" | "info" | "muted";
+};
 
-const toastStyle = tva({
-  base: 'p-4 m-1 rounded-md gap-1 web:pointer-events-auto shadow-hard-5 border-outline-100',
-  variants: {
-    action: {
-      error: 'bg-error-800',
-      warning: 'bg-warning-700',
-      success: 'bg-success-700',
-      info: 'bg-info-700',
-      muted: 'bg-background-800',
-    },
-
-    variant: {
-      solid: '',
-      outline: 'border bg-background-0',
-    },
-  },
+const ToastContext = createContext<ToastContextType>({
+  variant: "solid",
+  action: "muted",
 });
 
-const toastTitleStyle = tva({
-  base: 'text-typography-0 font-medium font-body tracking-md text-left',
-  variants: {
-    isTruncated: {
-      true: '',
-    },
-    bold: {
-      true: 'font-bold',
-    },
-    underline: {
-      true: 'underline',
-    },
-    strikeThrough: {
-      true: 'line-through',
-    },
-    size: {
-      '2xs': 'text-2xs',
-      'xs': 'text-xs',
-      'sm': 'text-sm',
-      'md': 'text-base',
-      'lg': 'text-lg',
-      'xl': 'text-xl',
-      '2xl': 'text-2xl',
-      '3xl': 'text-3xl',
-      '4xl': 'text-4xl',
-      '5xl': 'text-5xl',
-      '6xl': 'text-6xl',
-    },
-  },
-  parentVariants: {
-    variant: {
-      solid: '',
-      outline: '',
-    },
-    action: {
-      error: '',
-      warning: '',
-      success: '',
-      info: '',
-      muted: '',
-    },
-  },
-  parentCompoundVariants: [
-    {
-      variant: 'outline',
-      action: 'error',
-      class: 'text-error-800',
-    },
-    {
-      variant: 'outline',
-      action: 'warning',
-      class: 'text-warning-800',
-    },
-    {
-      variant: 'outline',
-      action: 'success',
-      class: 'text-success-800',
-    },
-    {
-      variant: 'outline',
-      action: 'info',
-      class: 'text-info-800',
-    },
-    {
-      variant: 'outline',
-      action: 'muted',
-      class: 'text-background-800',
-    },
-  ],
-});
+// 4. Define Colors (Tailwind approximation)
+const COLORS = {
+  error: { bg: "#991B1B", text: "#991B1B" }, // Red 800
+  warning: { bg: "#9A3412", text: "#9A3412" }, // Orange 700
+  success: { bg: "#15803D", text: "#15803D" }, // Green 700
+  info: { bg: "#1D4ED8", text: "#1D4ED8" }, // Blue 700
+  muted: { bg: "#1F2937", text: "#1F2937" }, // Gray 800
+  white: "#FFFFFF",
+  background: "#FFFFFF",
+  border: "#E5E7EB", // Gray 200
+  textDark: "#111827", // Gray 900
+  textMuted: "#6B7280", // Gray 500
+};
 
-const toastDescriptionStyle = tva({
-  base: 'font-normal font-body tracking-md text-left',
-  variants: {
-    isTruncated: {
-      true: '',
-    },
-    bold: {
-      true: 'font-bold',
-    },
-    underline: {
-      true: 'underline',
-    },
-    strikeThrough: {
-      true: 'line-through',
-    },
-    size: {
-      '2xs': 'text-2xs',
-      'xs': 'text-xs',
-      'sm': 'text-sm',
-      'md': 'text-base',
-      'lg': 'text-lg',
-      'xl': 'text-xl',
-      '2xl': 'text-2xl',
-      '3xl': 'text-3xl',
-      '4xl': 'text-4xl',
-      '5xl': 'text-5xl',
-      '6xl': 'text-6xl',
-    },
-  },
-  parentVariants: {
-    variant: {
-      solid: 'text-typography-50',
-      outline: 'text-typography-900',
-    },
-  },
-});
+// 5. Toast Root Component
+type IToastProps = React.ComponentProps<typeof View> & {
+  variant?: ToastContextType["variant"];
+  action?: ToastContextType["action"];
+};
 
-const Root = withStyleContext(View, SCOPE);
-type IToastProps = React.ComponentProps<typeof Root> & {
-  className?: string;
-} & VariantProps<typeof toastStyle>;
-
-const Toast = React.forwardRef<React.ComponentRef<typeof Root>, IToastProps>(
+const Toast = React.forwardRef<React.ComponentRef<typeof View>, IToastProps>(
   function Toast(
-    { className, variant = 'solid', action = 'muted', ...props },
+    { variant = "solid", action = "muted", style, ...props },
     ref
   ) {
+    // Determine container styles based on props
+    const containerStyle = useMemo(() => {
+      const baseStyles: ViewStyle[] = [styles.toastBase];
+
+      if (variant === "solid") {
+        baseStyles.push({
+          backgroundColor: COLORS[action].bg,
+          borderColor: COLORS[action].bg,
+        });
+      } else {
+        // Outline
+        baseStyles.push({
+          backgroundColor: COLORS.background,
+          borderColor: COLORS.border,
+        });
+      }
+
+      return baseStyles;
+    }, [variant, action]);
+
     return (
-      <Root
-        ref={ref}
-        className={toastStyle({ variant, action, class: className })}
-        context={{ variant, action }}
-        {...props}
-      />
+      <ToastContext.Provider value={{ variant, action }}>
+        <View ref={ref} style={[containerStyle, style]} {...props} />
+      </ToastContext.Provider>
     );
   }
 );
 
+// 6. Toast Title Component
 type IToastTitleProps = React.ComponentProps<typeof Text> & {
-  className?: string;
-} & VariantProps<typeof toastTitleStyle>;
+  size?: "sm" | "md" | "lg";
+};
 
 const ToastTitle = React.forwardRef<
   React.ComponentRef<typeof Text>,
   IToastTitleProps
->(function ToastTitle({ className, size = 'md', children, ...props }, ref) {
-  const { variant: parentVariant, action: parentAction } =
-    useStyleContext(SCOPE);
+>(function ToastTitle({ size = "md", style, children, ...props }, ref) {
+  const { variant, action } = useContext(ToastContext);
+
   React.useEffect(() => {
-    // Issue from react-native side
-    // Hack for now, will fix this later
     AccessibilityInfo.announceForAccessibility(children as string);
   }, [children]);
+
+  // Determine text color and font size styles
+  const dynamicStyles = useMemo(() => {
+    const textColor = variant === "solid" ? COLORS.white : COLORS[action].text;
+    const fontSize = size === "sm" ? 14 : size === "lg" ? 18 : 16;
+
+    return {
+      color: textColor,
+      fontSize,
+    };
+  }, [variant, action, size]);
 
   return (
     <Text
@@ -195,46 +121,83 @@ const ToastTitle = React.forwardRef<
       aria-live="assertive"
       aria-atomic="true"
       role="alert"
-      className={toastTitleStyle({
-        size,
-        class: className,
-        parentVariants: {
-          variant: parentVariant,
-          action: parentAction,
-        },
-      })}
+      style={[styles.toastTitleBase, dynamicStyles, style]}
     >
       {children}
     </Text>
   );
 });
 
+// 7. Toast Description Component
 type IToastDescriptionProps = React.ComponentProps<typeof Text> & {
-  className?: string;
-} & VariantProps<typeof toastDescriptionStyle>;
+  size?: "sm" | "md" | "lg";
+};
 
 const ToastDescription = React.forwardRef<
   React.ComponentRef<typeof Text>,
   IToastDescriptionProps
->(function ToastDescription({ className, size = 'md', ...props }, ref) {
-  const { variant: parentVariant } = useStyleContext(SCOPE);
+>(function ToastDescription({ size = "md", style, ...props }, ref) {
+  const { variant } = useContext(ToastContext);
+
+  // Determine text color and font size styles
+  const dynamicStyles = useMemo(() => {
+    // If solid, usually lighter/white. If outline, dark gray.
+    const textColor = variant === "solid" ? "#F3F4F6" : COLORS.textDark;
+    const fontSize = size === "sm" ? 12 : size === "lg" ? 16 : 14;
+
+    return {
+      color: textColor,
+      fontSize,
+    };
+  }, [variant, size]);
+
   return (
     <Text
       ref={ref}
       {...props}
-      className={toastDescriptionStyle({
-        size,
-        class: className,
-        parentVariants: {
-          variant: parentVariant,
-        },
-      })}
+      style={[styles.toastDescriptionBase, dynamicStyles, style]}
     />
   );
 });
 
-Toast.displayName = 'Toast';
-ToastTitle.displayName = 'ToastTitle';
-ToastDescription.displayName = 'ToastDescription';
+// 8. Define Styles
+const styles = StyleSheet.create({
+  toastBase: {
+    padding: 16,
+    margin: 4,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    // Shadow for elevation
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3.84,
+      },
+      android: {
+        elevation: 5,
+      },
+      web: {
+        boxShadow:
+          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+      },
+    }),
+  },
+  toastTitleBase: {
+    fontWeight: "600",
+    textAlign: "left",
+    marginBottom: 2,
+  },
+  toastDescriptionBase: {
+    fontWeight: "400",
+    textAlign: "left",
+  },
+});
 
-export { useToast, Toast, ToastTitle, ToastDescription };
+Toast.displayName = "Toast";
+ToastTitle.displayName = "ToastTitle";
+ToastDescription.displayName = "ToastDescription";
+
+export { Toast, ToastDescription, ToastTitle, useToast };

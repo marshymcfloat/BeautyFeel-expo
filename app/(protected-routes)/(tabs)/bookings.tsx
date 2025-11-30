@@ -1,255 +1,297 @@
-import { LinearGradient } from "expo-linear-gradient";
+import { BookingCard } from "@/components/bookings/BookingCard";
+import BookingDetailsModal from "@/components/bookings/BookingDetailsModal";
+import BookingFormModal from "@/components/bookings/BookingFormModal";
+import { DaySelector } from "@/components/bookings/DaySelector";
+import type { BookingWithServices } from "@/components/bookings/types";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { GradientHeader } from "@/components/ui/GradientHeader";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  MapPin,
-  Plus,
-} from "lucide-react-native";
-import React, { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
-
-interface BookingCardProps {
-  clientName: string;
-  service: string;
-  date: string;
-  time: string;
-  duration: string;
-  location: string;
-  status: "confirmed" | "pending" | "completed";
-}
-
-function BookingCard({
-  clientName,
-  service,
-  date,
-  time,
-  duration,
-  location,
-  status,
-}: BookingCardProps) {
-  const statusStyles = {
-    confirmed: {
-      bg: "bg-green-50",
-      text: "text-green-600",
-      label: "Confirmed",
-    },
-    pending: { bg: "bg-amber-50", text: "text-amber-600", label: "Pending" },
-    completed: {
-      bg: "bg-gray-100",
-      text: "text-gray-600",
-      label: "Completed",
-    },
-  };
-
-  const style = statusStyles[status];
-
-  return (
-    <View className="bg-white rounded-2xl p-5 mb-4">
-      <View className="flex-row justify-between items-start mb-4">
-        <View className="flex-row items-center flex-1">
-          <View className="w-14 h-14 rounded-full overflow-hidden">
-            <LinearGradient
-              colors={["#ec4899", "#d946ef"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="w-full h-full items-center justify-center"
-            >
-              <Text className="text-white font-bold text-xl">
-                {clientName.charAt(0)}
-              </Text>
-            </LinearGradient>
-          </View>
-          <View className="ml-3 flex-1">
-            <Text className="text-gray-900 font-bold text-lg">{clientName}</Text>
-            <Text className="text-pink-500 font-medium">{service}</Text>
-          </View>
-        </View>
-        <View className={`px-3 py-1.5 rounded-full ${style.bg}`}>
-          <Text className={`text-sm font-medium ${style.text}`}>
-            {style.label}
-          </Text>
-        </View>
-      </View>
-
-      <View className="bg-gray-50 rounded-xl p-4">
-        <View className="flex-row items-center mb-3">
-          <Calendar size={16} color="#6B7280" />
-          <Text className="text-gray-600 ml-2">{date}</Text>
-        </View>
-        <View className="flex-row items-center mb-3">
-          <Clock size={16} color="#6B7280" />
-          <Text className="text-gray-600 ml-2">
-            {time} • {duration}
-          </Text>
-        </View>
-        <View className="flex-row items-center">
-          <MapPin size={16} color="#6B7280" />
-          <Text className="text-gray-600 ml-2">{location}</Text>
-        </View>
-      </View>
-
-      {status !== "completed" && (
-        <View className="flex-row mt-4 gap-3">
-          <Pressable className="flex-1 bg-gray-100 py-3 rounded-xl active:bg-gray-200">
-            <Text className="text-gray-700 font-semibold text-center">
-              Reschedule
-            </Text>
-          </Pressable>
-          <Pressable className="flex-1 rounded-xl overflow-hidden active:opacity-90">
-            <LinearGradient
-              colors={["#ec4899", "#d946ef"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              className="py-3"
-            >
-              <Text className="text-white font-semibold text-center">
-                Start Session
-              </Text>
-            </LinearGradient>
-          </Pressable>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function DaySelector() {
-  const [selectedDay, setSelectedDay] = useState(2);
-
-  const days = [
-    { day: "Mon", date: 18 },
-    { day: "Tue", date: 19 },
-    { day: "Wed", date: 20 },
-    { day: "Thu", date: 21 },
-    { day: "Fri", date: 22 },
-    { day: "Sat", date: 23 },
-    { day: "Sun", date: 24 },
-  ];
-
-  return (
-    <View className="mb-6">
-      <View className="flex-row justify-between items-center px-6 mb-4">
-        <Pressable className="w-8 h-8 rounded-full bg-white items-center justify-center">
-          <ChevronLeft size={18} color="#374151" />
-        </Pressable>
-        <Text className="text-gray-900 font-bold text-lg">November 2024</Text>
-        <Pressable className="w-8 h-8 rounded-full bg-white items-center justify-center">
-          <ChevronRight size={18} color="#374151" />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-      >
-        {days.map((item, index) => {
-          const isSelected = index === selectedDay;
-          return (
-            <Pressable
-              key={index}
-              onPress={() => setSelectedDay(index)}
-              className="mx-2"
-            >
-              {isSelected ? (
-                <LinearGradient
-                  colors={["#ec4899", "#d946ef"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  className="w-14 h-20 rounded-2xl items-center justify-center"
-                >
-                  <Text className="text-white/80 text-sm">{item.day}</Text>
-                  <Text className="text-white font-bold text-xl">
-                    {item.date}
-                  </Text>
-                </LinearGradient>
-              ) : (
-                <View className="w-14 h-20 rounded-2xl bg-white items-center justify-center">
-                  <Text className="text-gray-500 text-sm">{item.day}</Text>
-                  <Text className="text-gray-900 font-bold text-xl">
-                    {item.date}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
+  claimServiceInstanceAction,
+  serveServiceInstanceAction,
+  unclaimServiceInstanceAction,
+  unserveServiceInstanceAction,
+} from "@/lib/actions/serviceInstanceActions";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { useRealtimeBookings } from "@/lib/hooks/useRealtimeBookings";
+import { useResponsive } from "@/lib/hooks/useResponsive";
+import { sortBookings } from "@/lib/utils/bookingSorting";
+import { COLORS, GRADIENT_COLORS } from "@/lib/utils/constants";
+import { formatDateString, formatFullDate } from "@/lib/utils/dateTime";
+import {
+  getContainerPadding,
+  PLATFORM,
+  scaleDimension,
+} from "@/lib/utils/responsive";
+import { LinearGradient } from "expo-linear-gradient";
+import { Calendar, Plus, Sparkles } from "lucide-react-native";
+import React, { useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 export default function BookingsScreen() {
-  const bookings: BookingCardProps[] = [
-    {
-      clientName: "Emma Wilson",
-      service: "Hair Coloring",
-      date: "Wednesday, Nov 20",
-      time: "10:00 AM",
-      duration: "2 hours",
-      location: "Salon Studio A",
-      status: "confirmed",
-    },
-    {
-      clientName: "Sarah Davis",
-      service: "Manicure & Pedicure",
-      date: "Wednesday, Nov 20",
-      time: "1:00 PM",
-      duration: "1.5 hours",
-      location: "Nail Station B",
-      status: "pending",
-    },
-    {
-      clientName: "Lisa Chen",
-      service: "Full Makeover",
-      date: "Wednesday, Nov 20",
-      time: "4:00 PM",
-      duration: "3 hours",
-      location: "VIP Suite",
-      status: "confirmed",
-    },
-  ];
+  const { user } = useAuth();
+  const { isSmallPhone } = useResponsive();
+  const today = formatDateString(new Date());
+  const [selectedDate, setSelectedDate] = useState(today);
+  const containerPadding = getContainerPadding();
+  const [claimingServiceId, setClaimingServiceId] = useState<number | null>(
+    null
+  );
+  const [servingServiceId, setServingServiceId] = useState<number | null>(null);
+  const [unclaimingServiceId, setUnclaimingServiceId] = useState<number | null>(
+    null
+  );
+  const [unservingServiceId, setUnservingServiceId] = useState<number | null>(
+    null
+  );
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] =
+    useState<BookingWithServices | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  const { bookings, loading, error } = useRealtimeBookings(selectedDate);
+
+  const sortedBookings = useMemo(() => {
+    if (!bookings || bookings.length === 0) return [];
+    return sortBookings(bookings as BookingWithServices[]);
+  }, [bookings]);
+
+  const handleClaimService = async (instanceId: number) => {
+    if (!user?.id) return;
+    setClaimingServiceId(instanceId);
+    try {
+      const result = await claimServiceInstanceAction(instanceId, user.id);
+      if (!result.success) {
+        console.error("Failed to claim service:", result.error);
+      }
+    } catch (error) {
+      console.error("Error claiming service:", error);
+    } finally {
+      setClaimingServiceId(null);
+    }
+  };
+
+  const handleServeService = async (instanceId: number) => {
+    if (!user?.id) return;
+    setServingServiceId(instanceId);
+    try {
+      const result = await serveServiceInstanceAction(instanceId, user.id);
+      if (!result.success) {
+        console.error("Failed to serve service:", result.error);
+      }
+    } catch (error) {
+      console.error("Error serving service:", error);
+    } finally {
+      setServingServiceId(null);
+    }
+  };
+
+  const handleUnclaimService = async (instanceId: number) => {
+    if (!user?.id) return;
+    setUnclaimingServiceId(instanceId);
+    try {
+      const result = await unclaimServiceInstanceAction(instanceId, user.id);
+      if (!result.success) {
+        console.error("Failed to unclaim service:", result.error);
+      }
+    } catch (error) {
+      console.error("Error unclaiming service:", error);
+    } finally {
+      setUnclaimingServiceId(null);
+    }
+  };
+
+  const handleUnserveService = async (instanceId: number) => {
+    if (!user?.id) return;
+    setUnservingServiceId(instanceId);
+    try {
+      const result = await unserveServiceInstanceAction(instanceId, user.id);
+      if (!result.success) {
+        console.error("Failed to unserve service:", result.error);
+      }
+    } catch (error) {
+      console.error("Error unserving service:", error);
+    } finally {
+      setUnservingServiceId(null);
+    }
+  };
+
+  const displayDate = formatFullDate(selectedDate);
+
+  const AddButton = () => (
+    <Pressable
+      onPress={() => setShowBookingModal(true)}
+      style={({ pressed }) => [
+        styles.addButton,
+        pressed && styles.addButtonPressed,
+      ]}
+    >
+      <LinearGradient
+        colors={["rgba(255, 255, 255, 0.3)", "rgba(255, 255, 255, 0.2)"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.addButtonGradient}
+      >
+        <Plus size={22} color="white" />
+      </LinearGradient>
+    </Pressable>
+  );
 
   return (
-    <View className="flex-1">
+    <View style={styles.container}>
+      <LinearGradient
+        colors={GRADIENT_COLORS.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 100 }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="flex-row justify-between items-center px-6 pt-4 pb-6">
-          <View>
-            <Text className="text-3xl font-bold text-gray-900">Bookings</Text>
-            <Text className="text-gray-500 mt-1">Manage your appointments</Text>
-          </View>
-          <Pressable className="w-12 h-12 rounded-full overflow-hidden active:opacity-90">
-            <LinearGradient
-              colors={["#ec4899", "#d946ef"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="w-full h-full items-center justify-center"
-            >
-              <Plus size={24} color="white" />
-            </LinearGradient>
-          </Pressable>
-        </View>
+        <GradientHeader
+          title="Bookings"
+          subtitle="Manage your appointments"
+          icon={<Calendar size={28} color="white" />}
+          rightElement={<AddButton />}
+        />
 
-        {/* Day Selector */}
-        <DaySelector />
+        <DaySelector
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
 
-        {/* Bookings List */}
-        <View className="px-6">
-          <Text className="text-gray-500 font-medium mb-4">
-            3 appointments today
-          </Text>
-          {bookings.map((booking, index) => (
-            <BookingCard key={index} {...booking} />
-          ))}
+        <View
+          style={[styles.bookingsList, { paddingHorizontal: containerPadding }]}
+        >
+          {loading ? (
+            <LoadingState />
+          ) : error ? (
+            <ErrorState message={error} />
+          ) : bookings.length === 0 ? (
+            <EmptyState
+              icon={<Sparkles size={isSmallPhone ? 40 : 48} color="#d1d5db" />}
+              title="No bookings yet"
+              message={`No appointments scheduled for ${displayDate}`}
+              actionLabel="Create Booking"
+              actionIcon={<Plus size={18} color="white" />}
+              onAction={() => setShowBookingModal(true)}
+            />
+          ) : (
+            <>
+              <View style={styles.bookingsHeader}>
+                <ResponsiveText
+                  variant="xl"
+                  style={styles.bookingsCount}
+                  numberOfLines={1}
+                >
+                  {bookings.length} appointment
+                  {bookings.length !== 1 ? "s" : ""}
+                </ResponsiveText>
+                <ResponsiveText
+                  variant="sm"
+                  style={styles.bookingsDate}
+                  numberOfLines={1}
+                >
+                  {displayDate}
+                </ResponsiveText>
+              </View>
+              {sortedBookings.map((booking) => (
+                <BookingCard
+                  key={booking.id}
+                  booking={booking}
+                  currentUserId={user?.id || null}
+                  onClaimService={handleClaimService}
+                  onServeService={handleServeService}
+                  onViewDetails={(booking) => {
+                    setSelectedBooking(booking);
+                    setShowDetailsModal(true);
+                  }}
+                />
+              ))}
+            </>
+          )}
         </View>
       </ScrollView>
+
+      <BookingFormModal
+        visible={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        defaultDate={selectedDate}
+        onSuccess={() => {
+          setShowBookingModal(false);
+        }}
+      />
+
+      <BookingDetailsModal
+        visible={showDetailsModal}
+        booking={selectedBooking}
+        currentUserId={user?.id || null}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedBooking(null);
+        }}
+        onClaimService={handleClaimService}
+        onServeService={handleServeService}
+        onUnclaimService={handleUnclaimService}
+        onUnserveService={handleUnserveService}
+        claimingServiceId={claimingServiceId}
+        servingServiceId={servingServiceId}
+        unclaimingServiceId={unclaimingServiceId}
+        unservingServiceId={unservingServiceId}
+      />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    position: "relative",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: scaleDimension(100),
+  },
+  addButton: {
+    width: scaleDimension(52),
+    height: scaleDimension(52),
+    borderRadius: scaleDimension(26),
+    overflow: "hidden",
+    ...PLATFORM.shadowMd,
+  },
+  addButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  addButtonGradient: {
+    width: scaleDimension(52),
+    height: scaleDimension(52),
+    borderRadius: scaleDimension(26),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bookingsList: {
+    gap: scaleDimension(8),
+  },
+  bookingsHeader: {
+    marginBottom: scaleDimension(20),
+    paddingHorizontal: scaleDimension(4),
+  },
+  bookingsCount: {
+    color: COLORS.text,
+    fontWeight: "800",
+    marginBottom: scaleDimension(6),
+    letterSpacing: -0.3,
+  },
+  bookingsDate: {
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
+});

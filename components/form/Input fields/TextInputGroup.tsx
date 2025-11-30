@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, TextInput, View } from "react-native";
+import { Text, TextInput, View, StyleSheet } from "react-native";
 
 export default function TextInputGroup({
   label,
@@ -11,14 +11,33 @@ export default function TextInputGroup({
   secureTextEntry: boolean;
 }) {
   return (
-    <View className="mb-4">
-      <Text className="text-gray-700 font-medium mb-1">{label}</Text>
+    <View style={styles.container}>
+      <Text style={styles.label}>{label}</Text>
       <TextInput
         placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
         secureTextEntry={secureTextEntry}
-        className="border border-gray-300 rounded-lg p-3 text-black bg-white"
+        style={styles.input}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: 16,
+  },
+  label: {
+    color: "#374151",
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    padding: 12,
+    color: "#000000",
+    backgroundColor: "white",
+  },
+});

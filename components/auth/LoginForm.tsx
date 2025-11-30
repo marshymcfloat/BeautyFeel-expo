@@ -1,39 +1,23 @@
 import { authLoginAction } from "@/lib/actions/authActions";
+import { supabase } from "@/lib/utils/supabase";
 import { authLoginSchema, LoginSchemaTypes } from "@/lib/zod-schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Check, Loader2 } from "lucide-react-native";
-import React, { useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react-native";
+import React from "react";
 import { useForm } from "react-hook-form";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { FormField } from "../form/FormField";
+import RotatingSpinner from "../ui/RotatingSpinner";
 import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
 
 function LoadingSpinner({ color = "white" }: { color?: string }) {
-  const spinValue = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.timing(spinValue, {
-        toValue: 1,
-        duration: 1000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, [spinValue]);
-
-  const spin = spinValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
   return (
-    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+    <RotatingSpinner isAnimating={true} size={18}>
       <Loader2 size={18} color={color} />
-    </Animated.View>
+    </RotatingSpinner>
   );
 }
 
@@ -57,69 +41,114 @@ export default function LoginForm({
 
   const { mutate: login, isPending: loginPending } = useMutation({
     mutationFn: authLoginAction,
-    onSuccess: (data) => {
-      if (!data.success) {
+    onSuccess: async (data) => {
+      try {
+        console.log(
+          "Mutation onSuccess called with data:",
+          JSON.stringify(data)
+        );
+
+        if (!data.success) {
+          console.error("Login failed:", data.error);
+          toast.show({
+            placement: "top",
+            duration: 3000,
+            render: ({ id }) => {
+              const uniqueToastId = "toast-" + id;
+              return (
+                <Toast
+                  variant="outline"
+                  nativeID={uniqueToastId}
+                  action="error"
+                >
+                  <ToastTitle>Login error</ToastTitle>
+                  <ToastDescription>{data.error}</ToastDescription>
+                </Toast>
+              );
+            },
+          });
+          return;
+        }
+
+        console.log("Login successful! Verifying session...");
+
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        console.log("Session check result:", {
+          hasSession: !!session,
+          error: sessionError,
+        });
+
+        if (sessionError || !session) {
+          console.error("Session not found after login:", sessionError);
+          toast.show({
+            placement: "top",
+            duration: 3000,
+            render: ({ id }) => (
+              <Toast action="error" variant="outline" nativeID={"toast-" + id}>
+                <ToastTitle>Session Error</ToastTitle>
+                <ToastDescription>
+                  Login succeeded but session could not be established. Please
+                  try again.
+                </ToastDescription>
+              </Toast>
+            ),
+          });
+          return;
+        }
+
+        console.log("Session verified! User ID:", session.user?.id);
+        console.log("Platform:", Platform.OS);
+
+        console.log("Closing modal...");
+        onSuccess(false);
+      } catch (error) {
+        console.error("Error in onSuccess callback:", error);
         toast.show({
           placement: "top",
           duration: 3000,
-          render: ({ id }) => {
-            const uniqueToastId = "toast-" + id;
-            return (
-              <Toast variant="outline" nativeID={uniqueToastId} action="error">
-                <ToastTitle>Login error</ToastTitle>
-                <ToastDescription>{data.error}</ToastDescription>
-              </Toast>
-            );
-          },
+          render: ({ id }) => (
+            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
+              <ToastTitle>Unexpected Error</ToastTitle>
+              <ToastDescription>
+                {error instanceof Error
+                  ? error.message
+                  : "An unexpected error occurred"}
+              </ToastDescription>
+            </Toast>
+          ),
         });
-        return;
       }
+    },
+    onError: (error) => {
+      console.error("Mutation onError called:", error);
       toast.show({
         placement: "top",
         duration: 3000,
-        render: ({ id }) => {
-          return (
-            <Toast
-              action="success"
-              variant="outline"
-              nativeID={`toast-${id}`}
-              className="bg-white flex-row items-center gap-4 p-4 shadow-md"
-            >
-              <View className="w-8 h-8 rounded-full bg-green-100 items-center justify-center">
-                <Check color="#22c55e" size={18} />
-              </View>
-              <View className="flex-1 gap-1">
-                <ToastTitle className="text-gray-900 font-bold">
-                  Login Successful
-                </ToastTitle>
-                <ToastDescription className="text-gray-600 text-xs">
-                  Welcome back! Redirecting you now...
-                </ToastDescription>
-              </View>
-            </Toast>
-          );
-        },
-      });
-
-      onSuccess(true);
-      router.replace("/home");
-    },
-    onError: (error) => {
-      toast.show({
-        placement: "top",
         render: ({ id }) => (
           <Toast action="error" variant="outline" nativeID={"toast-" + id}>
             <ToastTitle>Login Failed</ToastTitle>
             <ToastDescription>
-              {error.message || "Something went wrong"}
+              {error.message || "Something went wrong. Please try again."}
             </ToastDescription>
           </Toast>
         ),
       });
     },
+    onSettled: (data, error) => {
+      console.log("Mutation onSettled called", {
+        hasData: !!data,
+        hasError: !!error,
+      });
+    },
   });
 
   function handleSubmission(data: LoginSchemaTypes) {
+    console.log("Form submitted, attempting login with email:", data.email);
     login(data);
   }
 
@@ -147,21 +176,23 @@ export default function LoginForm({
       <Pressable
         onPress={handleSubmit(handleSubmission)}
         disabled={loginPending}
-        className="mt-6 rounded-xl overflow-hidden active:opacity-90"
-        style={{ opacity: loginPending ? 0.7 : 1 }}
+        style={[
+          styles.signInButtonContainer,
+          { opacity: loginPending ? 0.8 : 1 },
+        ]}
       >
         <LinearGradient
           colors={["#ec4899", "#d946ef"]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          className="py-4 items-center justify-center flex-row"
+          end={{ x: 1, y: 1 }}
+          style={styles.signInButtonGradient}
         >
           {loginPending && (
-            <View className="mr-2">
+            <View style={styles.spinnerContainer}>
               <LoadingSpinner />
             </View>
           )}
-          <Text className="text-white font-bold text-base">
+          <Text style={styles.signInButtonText}>
             {loginPending ? "Signing in..." : "Sign In"}
           </Text>
         </LinearGradient>
@@ -170,10 +201,44 @@ export default function LoginForm({
       <Pressable
         onPress={() => onSuccess(false)}
         disabled={loginPending}
-        className="mt-4 py-3"
+        style={styles.cancelButton}
       >
-        <Text className="text-center text-gray-500 font-medium">Cancel</Text>
+        <Text style={styles.cancelButtonText}>Cancel</Text>
       </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  signInButtonContainer: {
+    marginTop: 24,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  signInButtonGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    minHeight: 52,
+  },
+  spinnerContainer: {
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  signInButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  cancelButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  cancelButtonText: {
+    textAlign: "center",
+    color: "#6b7280",
+    fontWeight: "500",
+  },
+});

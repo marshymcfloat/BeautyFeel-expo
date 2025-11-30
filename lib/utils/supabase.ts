@@ -43,19 +43,33 @@ const getSupabaseClient = () => {
         : undefined
       : getAsyncStorage();
 
-  supabaseClient = createClient(
-    process.env.EXPO_PUBLIC_SUPABASE_URL!,
-    process.env.EXPO_PUBLIC_SUPABASE_KEY!,
-    {
-      auth: {
-        storage: storage as any,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-        lock: processLock,
-      },
-    }
-  );
+  // Check for required environment variables
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    const errorMessage = `Missing Supabase environment variables. 
+Please ensure you have EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY set in your .env file or environment variables.
+
+Current values:
+- EXPO_PUBLIC_SUPABASE_URL: ${supabaseUrl ? "✅ Set" : "❌ Missing"}
+- EXPO_PUBLIC_SUPABASE_KEY: ${supabaseKey ? "✅ Set" : "❌ Missing"}
+
+On Android, make sure to restart the development server after adding environment variables.`;
+    
+    console.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  supabaseClient = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      storage: storage as any,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+      lock: processLock,
+    },
+  });
 
   return supabaseClient;
 };

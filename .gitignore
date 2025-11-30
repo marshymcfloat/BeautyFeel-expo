@@ -32,9 +32,19 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env.production
+
+# EAS
+credentials.json
+service-account-key.json
+*.p12
+*.jks
 
 # typescript
 *.tsbuildinfo
+
+# IDE
+.idea/
 
 app-example
 
