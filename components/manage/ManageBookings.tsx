@@ -5,12 +5,7 @@ import { queryClient } from "@/components/Providers/TanstackProvider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
-import {
-  Toast,
-  ToastDescription,
-  ToastTitle,
-  useToast,
-} from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import {
   deleteBookingAction,
   getAllBookings,
@@ -82,45 +77,14 @@ export default function ManageBookings() {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
         queryClient.invalidateQueries({ queryKey: ["bookings"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Booking deleted successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Booking Deleted", "Booking deleted successfully");
         setExpandedBookingId(null);
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to delete booking"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to delete booking");
       }
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 

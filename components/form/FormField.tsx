@@ -1,3 +1,4 @@
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { Control, Controller, FieldValues, Path } from "react-hook-form";
 import {
   Platform,
@@ -58,23 +59,24 @@ export function FormField<T extends FieldValues>({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    marginBottom: 16,
+    marginBottom: scaleDimension(16),
   },
   label: {
     color: "#374151",
     fontWeight: "600",
-    marginBottom: 8,
-    fontSize: 14,
+    marginBottom: scaleDimension(8),
+    fontSize: scaleFont(14),
   },
   input: {
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 14 : 12,
-    fontSize: 16,
+    borderRadius: scaleDimension(12),
+    paddingHorizontal: scaleDimension(16),
+    paddingVertical:
+      Platform.OS === "ios" ? scaleDimension(14) : scaleDimension(12),
+    fontSize: scaleFont(16),
     color: "#111827",
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    minHeight: 52,
+    minHeight: scaleDimension(52),
     textAlignVertical: "center",
   },
   inputNormal: {
@@ -86,8 +88,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#EF4444",
-    fontSize: 14,
-    marginTop: 6,
-    marginLeft: 4,
+    fontSize: scaleFont(14),
+    marginTop: scaleDimension(6),
+    marginLeft: scaleDimension(4),
   },
 });

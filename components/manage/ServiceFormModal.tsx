@@ -23,7 +23,7 @@ import {
 import { z } from "zod";
 import { FormField } from "../form/FormField";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 type Service = Database["public"]["Tables"]["service"]["Row"];
 type Branch = Database["public"]["Enums"]["branch"];
@@ -60,7 +60,7 @@ export default function ServiceFormModal({
   const toast = useToast();
 
   const form = useForm<ServiceFormData>({
-    resolver: zodResolver(serviceSchema),
+    resolver: zodResolver(serviceSchema) as any,
     defaultValues: existingService
       ? {
           title: existingService.title,
@@ -135,33 +135,16 @@ export default function ServiceFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-services"] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Service created successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Service Created", "Service created successfully");
         reset();
         onClose();
         onSuccess?.();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to create service"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to create service");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to create service");
     },
   });
 
@@ -174,32 +157,15 @@ export default function ServiceFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-services"] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Service updated successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Service Updated", "Service updated successfully");
         onClose();
         onSuccess?.();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to update service"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to update service");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to update service");
     },
   });
 

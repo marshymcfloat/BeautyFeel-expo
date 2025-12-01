@@ -27,7 +27,7 @@ export function StatCard({
 }: StatCardProps) {
   const content = (
     <LinearGradient
-      colors={gradientColors}
+      colors={[...gradientColors]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.cardGradient}

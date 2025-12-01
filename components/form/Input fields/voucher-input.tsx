@@ -1,30 +1,24 @@
-import { Ticket, X } from "lucide-react-native";
+import { ResponsiveText } from "@/components/ui/ResponsiveText";
+import type { Tables } from "@/database.types";
+import { checkVoucher } from "@/lib/actions/voucherActions";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
+import { CreateBookingSchema } from "@/lib/zod-schemas/booking";
+import { AlertCircle, Ticket, X } from "lucide-react-native";
 import React, { useState } from "react";
 import { Control, UseFormSetValue, useWatch } from "react-hook-form";
 import {
   ActivityIndicator,
   Keyboard,
+  Platform,
   Pressable,
-  Text,
+  StyleSheet,
+  TextInput,
   View,
 } from "react-native";
 
-import {
-  FormControl,
-  FormControlError,
-  FormControlErrorIcon,
-  FormControlErrorText,
-  FormControlLabel,
-  FormControlLabelText,
-} from "@/components/ui/form-control";
-import { Input, InputField, InputIcon, InputSlot } from "@/components/ui/input";
-import { checkVoucher } from "@/lib/actions/voucherActions";
-import { CreateBookingTypes } from "@/lib/zod-schemas/booking";
-import { AlertCircle } from "lucide-react-native";
-
 interface VoucherInputProps {
-  control: Control<CreateBookingTypes>;
-  setValue: UseFormSetValue<CreateBookingTypes>;
+  control: Control<CreateBookingSchema>;
+  setValue: UseFormSetValue<CreateBookingSchema>;
 }
 
 export default function VoucherInput({ control, setValue }: VoucherInputProps) {
@@ -38,20 +32,35 @@ export default function VoucherInput({ control, setValue }: VoucherInputProps) {
   const handleApply = async () => {
     if (!code) return;
 
+    // Validate format: BF + 4 alphanumeric characters
+    const codePattern = /^BF[A-Z0-9]{4}$/;
+    if (!codePattern.test(code.toUpperCase())) {
+      setLocalError(
+        "Invalid format. Code must be BF followed by 4 characters (e.g., BF1234)"
+      );
+      return;
+    }
+
     setLoading(true);
     setLocalError("");
     Keyboard.dismiss();
 
-    const result = await checkVoucher(code);
+    const result = await checkVoucher(code.toUpperCase());
 
-    if (!result.success || !result.data) {
+    if (!result.success) {
       setLocalError(result.error || "Invalid code");
       setLoading(false);
       return;
     }
 
-    // Success: Update Form
-    const voucher = result.data;
+    // Type assertion - we know data exists when success is true
+    const voucher = (result as { success: true; data: Tables<"voucher"> }).data;
+
+    if (!voucher) {
+      setLocalError("Voucher not found");
+      setLoading(false);
+      return;
+    }
 
     // 1. Set the Voucher ID (for the database relationship)
     setValue("voucher", voucher.id);
@@ -70,28 +79,25 @@ export default function VoucherInput({ control, setValue }: VoucherInputProps) {
     setLocalError("");
   };
 
-  // --- STATE: VOUCHER APPLIED ---
   if (appliedVoucherId) {
     return (
-      <View className="mb-4">
-        <FormControlLabel className="mb-2">
-          <FormControlLabelText className="text-gray-700 font-medium">
-            Voucher / Discount
-          </FormControlLabelText>
-        </FormControlLabel>
-
-        <View className="bg-green-50 border border-green-200 rounded-lg p-3 flex-row justify-between items-center h-12">
-          <View className="flex-row items-center gap-2">
-            <Ticket size={18} color="green" />
-            <Text className="text-green-800 font-medium">
+      <View style={styles.container}>
+        <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+          Voucher / Discount
+        </ResponsiveText>
+        <View style={styles.appliedContainer}>
+          <View style={styles.appliedContent}>
+            <Ticket size={scaleDimension(18)} color="#10b981" />
+            <ResponsiveText
+              variant="sm"
+              style={styles.appliedText}
+              numberOfLines={1}
+            >
               Discount Applied: -₱{currentDiscount.toLocaleString()}
-            </Text>
+            </ResponsiveText>
           </View>
-          <Pressable
-            onPress={handleRemove}
-            className="bg-white rounded-full p-1"
-          >
-            <X size={14} color="gray" />
+          <Pressable onPress={handleRemove} style={styles.removeButton}>
+            <X size={scaleDimension(14)} color="#6b7280" />
           </Pressable>
         </View>
       </View>
@@ -100,56 +106,170 @@ export default function VoucherInput({ control, setValue }: VoucherInputProps) {
 
   // --- STATE: INPUT MODE ---
   return (
-    <FormControl isInvalid={!!localError} className="mb-4">
-      <FormControlLabel className="mb-2">
-        <FormControlLabelText className="text-gray-700 font-medium">
-          Voucher Code
-        </FormControlLabelText>
-      </FormControlLabel>
-
-      <Input
-        variant="outline"
-        size="md"
-        className={`bg-white h-12 rounded-lg border-gray-300 ${
-          localError ? "border-red-500" : ""
-        }`}
+    <View style={styles.container}>
+      <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+        Voucher Code (Optional)
+      </ResponsiveText>
+      <View
+        style={[
+          styles.inputContainer,
+          localError ? styles.inputError : styles.inputNormal,
+        ]}
       >
-        <InputSlot className="pl-3">
-          <InputIcon as={Ticket} size={"md"} className="text-gray-400" />
-        </InputSlot>
-
-        <InputField
-          placeholder="Enter code"
+        <View style={styles.iconContainer}>
+          <Ticket size={scaleDimension(20)} color="#9ca3af" />
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter code (e.g., BF1234)"
+          placeholderTextColor="#9CA3AF"
           value={code}
           onChangeText={(t) => {
-            setCode(t);
+            // Limit to 6 characters and uppercase
+            const upperCode = t.toUpperCase().slice(0, 6);
+            setCode(upperCode);
             if (localError) setLocalError("");
           }}
-          className="text-black ml-1 flex-1"
           autoCapitalize="characters"
+          maxLength={6}
+          textAlignVertical="center"
         />
-
-        <InputSlot className="pr-3">
+        <View style={styles.buttonContainer}>
           {loading ? (
             <ActivityIndicator size="small" color="#ec4899" />
           ) : (
             <Pressable
               onPress={handleApply}
               disabled={!code}
-              className={`${code ? "opacity-100" : "opacity-50"}`}
+              style={[styles.applyButton, !code && styles.applyButtonDisabled]}
             >
-              <Text className="text-pink-500 font-bold text-sm">Apply</Text>
+              <ResponsiveText
+                variant="sm"
+                style={[
+                  styles.applyButtonText,
+                  !code && styles.applyButtonTextDisabled,
+                ]}
+                numberOfLines={1}
+              >
+                Apply
+              </ResponsiveText>
             </Pressable>
           )}
-        </InputSlot>
-      </Input>
-
-      <FormControlError>
-        <FormControlErrorIcon as={AlertCircle} size="md" />
-        <FormControlErrorText className="text-xs ml-1">
-          {localError}
-        </FormControlErrorText>
-      </FormControlError>
-    </FormControl>
+        </View>
+      </View>
+      {localError && (
+        <View style={styles.errorContainer}>
+          <AlertCircle size={scaleDimension(16)} color="#EF4444" />
+          <ResponsiveText
+            variant="xs"
+            style={styles.errorText}
+            numberOfLines={2}
+          >
+            {localError}
+          </ResponsiveText>
+        </View>
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    marginBottom: scaleDimension(16),
+  },
+  label: {
+    color: "#374151",
+    fontWeight: "600",
+    marginBottom: scaleDimension(8),
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: scaleDimension(12),
+    borderWidth: 1,
+    backgroundColor: "#F9FAFB",
+    minHeight: scaleDimension(52),
+    paddingHorizontal: scaleDimension(4),
+  },
+  inputNormal: {
+    borderColor: "#E5E7EB",
+  },
+  inputError: {
+    borderWidth: 2,
+    borderColor: "#F87171",
+  },
+  iconContainer: {
+    paddingLeft: scaleDimension(12),
+    paddingRight: scaleDimension(8),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  input: {
+    flex: 1,
+    fontSize: scaleFont(16),
+    color: "#111827",
+    paddingVertical:
+      Platform.OS === "ios" ? scaleDimension(14) : scaleDimension(12),
+    textAlignVertical: "center",
+  },
+  buttonContainer: {
+    paddingRight: scaleDimension(12),
+    paddingLeft: scaleDimension(8),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  applyButton: {
+    paddingHorizontal: scaleDimension(12),
+    paddingVertical: scaleDimension(6),
+  },
+  applyButtonDisabled: {
+    opacity: 0.5,
+  },
+  applyButtonText: {
+    color: "#ec4899",
+    fontWeight: "600",
+  },
+  applyButtonTextDisabled: {
+    color: "#9ca3af",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: scaleDimension(6),
+    marginLeft: scaleDimension(4),
+    gap: scaleDimension(4),
+  },
+  errorText: {
+    color: "#EF4444",
+    flex: 1,
+  },
+  appliedContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#d1fae5",
+    borderWidth: 1,
+    borderColor: "#a7f3d0",
+    borderRadius: scaleDimension(12),
+    padding: scaleDimension(12),
+    minHeight: scaleDimension(52),
+  },
+  appliedContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(8),
+    flex: 1,
+  },
+  appliedText: {
+    color: "#065f46",
+    fontWeight: "600",
+    flex: 1,
+  },
+  removeButton: {
+    backgroundColor: "white",
+    borderRadius: scaleDimension(16),
+    padding: scaleDimension(4),
+    marginLeft: scaleDimension(8),
+  },
+});

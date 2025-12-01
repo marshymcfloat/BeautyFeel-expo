@@ -6,10 +6,11 @@ import {
   getAppointmentStats,
   type TimeSpan,
 } from "@/lib/actions/salesActions";
+import { formatCurrency } from "@/lib/utils/currency";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  ArrowUpRight,
   DollarSign,
   TrendingUp,
   Calendar,
@@ -17,7 +18,6 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Loader2,
   BarChart3,
 } from "lucide-react-native";
 import React, { useState } from "react";
@@ -86,8 +86,6 @@ function TimeSpanSelector({
   );
 }
 
-import { formatCurrency } from "@/lib/utils/currency";
-
 export default function SalesScreen() {
   const { hasRole, loading: authLoading } = useAuth();
   const isOwner = hasRole("owner");
@@ -108,7 +106,6 @@ export default function SalesScreen() {
   const {
     data: salesStats,
     isLoading: statsLoading,
-    error: statsError,
   } = useQuery({
     queryKey: ["salesStats", timeSpan],
     queryFn: () => getSalesStats(timeSpan),
@@ -334,7 +331,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   restrictedText: {
-    fontSize: 16,
+    fontSize: scaleFont(16),
     color: "#6b7280",
     textAlign: "center",
   },
@@ -391,15 +388,15 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 14,
+    fontSize: scaleFont(14),
     fontWeight: "600",
-    marginBottom: 4,
+    marginBottom: scaleDimension(4),
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   welcomeText: {
     color: "white",
-    fontSize: 24,
+    fontSize: scaleFont(20),
     fontWeight: "800",
     letterSpacing: -0.5,
   },
@@ -454,7 +451,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fdf2f8",
   },
   timeSpanText: {
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: "#6b7280",
     fontWeight: "500",
   },
@@ -500,11 +497,11 @@ const styles = StyleSheet.create({
   },
   statTitle: {
     color: "#6b7280",
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: scaleFont(14),
+    marginBottom: scaleDimension(4),
   },
   statValue: {
-    fontSize: 24,
+    fontSize: scaleFont(20),
     fontWeight: "bold",
     color: "#111827",
   },
@@ -512,11 +509,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: scaleFont(18),
     fontWeight: "bold",
     color: "#111827",
-    paddingHorizontal: 24,
-    marginBottom: 16,
+    paddingHorizontal: scaleDimension(24),
+    marginBottom: scaleDimension(16),
   },
   chartLoadingContainer: {
     backgroundColor: "white",
@@ -536,7 +533,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#ef4444",
-    fontSize: 14,
+    fontSize: scaleFont(14),
     textAlign: "center",
   },
   appointmentsSection: {
@@ -589,12 +586,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   appointmentStatValue: {
-    fontSize: 24,
+    fontSize: scaleFont(20),
     fontWeight: "bold",
     color: "#111827",
   },
   appointmentStatLabel: {
     color: "#6b7280",
-    fontSize: 14,
+    fontSize: scaleFont(14),
   },
 });

@@ -3,12 +3,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
-import {
-  Toast,
-  ToastDescription,
-  ToastTitle,
-  useToast,
-} from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import type { Database } from "@/database.types";
 import {
   getAllServicesAction,
@@ -31,7 +26,7 @@ import {
   Edit,
   MoreVertical,
   Plus,
-  Restore,
+  RotateCcw,
   Sparkles,
   Trash2,
 } from "lucide-react-native";
@@ -71,7 +66,9 @@ export default function ManageServices() {
     queryFn: getAllServicesAction,
   });
 
-  const services = servicesData?.success ? servicesData.data || [] : [];
+  const services: Service[] = servicesData?.success
+    ? servicesData.data || []
+    : [];
 
   // Fetch all service sets
   const { data: serviceSetsData, isLoading: serviceSetsLoading } = useQuery({
@@ -106,8 +103,9 @@ export default function ManageServices() {
     };
 
     services.forEach((service) => {
-      if (grouped[service.branch]) {
-        grouped[service.branch].push(service);
+      const branch = service.branch as keyof typeof grouped;
+      if (grouped[branch]) {
+        grouped[branch].push(service);
       }
     });
 
@@ -121,33 +119,17 @@ export default function ManageServices() {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-services"] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>
-                Service deactivated successfully
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Service Deactivated",
+          "Service deactivated successfully"
+        );
         setExpandedServiceId(null);
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to deactivate service"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to deactivate service");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to deactivate service");
     },
   });
 
@@ -158,31 +140,14 @@ export default function ManageServices() {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-services"] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Service restored successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Service Restored", "Service restored successfully");
         setExpandedServiceId(null);
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to restore service"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to restore service");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to restore service");
     },
   });
 
@@ -193,33 +158,17 @@ export default function ManageServices() {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-service-sets"] });
         queryClient.invalidateQueries({ queryKey: ["service-sets"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>
-                Service set deleted successfully
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Service Set Deleted",
+          "Service set deleted successfully"
+        );
         setExpandedServiceSetId(null);
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to delete service set"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to delete service set");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to delete service set");
     },
   });
 
@@ -560,7 +509,7 @@ export default function ManageServices() {
                                       handleRestoreService(service)
                                     }
                                   >
-                                    <Restore
+                                    <RotateCcw
                                       size={smallIconSize}
                                       color="#10b981"
                                     />

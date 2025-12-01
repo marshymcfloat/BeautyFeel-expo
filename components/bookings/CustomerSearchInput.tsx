@@ -1,5 +1,6 @@
 import { Tables } from "@/database.types";
 import { searchCustomers } from "@/lib/actions/customerActions";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { useQuery } from "@tanstack/react-query";
 import { User } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -164,33 +165,33 @@ export default function CustomerSearchInput({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: scaleDimension(16),
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    borderRadius: 12,
+    borderRadius: scaleDimension(12),
     backgroundColor: "#f9fafb",
-    paddingHorizontal: 16,
-    minHeight: 52,
+    paddingHorizontal: scaleDimension(16),
+    minHeight: scaleDimension(52),
   },
   inputContainerError: {
     borderColor: "#ef4444",
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: scaleDimension(12),
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: scaleFont(16),
     color: "#111827",
     paddingVertical: 0,
     textAlignVertical: "center",
   },
   loader: {
-    marginLeft: 8,
+    marginLeft: scaleDimension(8),
   },
   selectedContainer: {
     flexDirection: "row",
@@ -198,11 +199,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    borderRadius: 12,
+    borderRadius: scaleDimension(12),
     backgroundColor: "#f0fdf4",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 52,
+    paddingHorizontal: scaleDimension(16),
+    paddingVertical: scaleDimension(12),
+    minHeight: scaleDimension(52),
   },
   selectedContent: {
     flexDirection: "row",
@@ -210,39 +211,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectedText: {
-    marginLeft: 12,
-    fontSize: 16,
+    marginLeft: scaleDimension(12),
+    fontSize: scaleFont(16),
     color: "#111827",
     fontWeight: "500",
   },
   clearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: scaleDimension(12),
+    paddingVertical: scaleDimension(6),
   },
   clearButtonText: {
     color: "#ec4899",
     fontWeight: "500",
-    fontSize: 14,
+    fontSize: scaleFont(14),
   },
   resultsContainer: {
-    marginTop: 8,
+    marginTop: scaleDimension(8),
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    borderRadius: 12,
+    borderRadius: scaleDimension(12),
     backgroundColor: "white",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: scaleDimension(2) },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: scaleDimension(4),
     elevation: 3,
-    maxHeight: 200,
+    maxHeight: scaleDimension(200),
   },
   resultsContent: {
-    paddingBottom: 8,
+    paddingBottom: scaleDimension(8),
   },
   resultItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: scaleDimension(16),
+    paddingVertical: scaleDimension(12),
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
@@ -251,23 +252,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   resultItemText: {
-    marginLeft: 12,
+    marginLeft: scaleDimension(12),
     flex: 1,
   },
   resultItemName: {
-    fontSize: 16,
+    fontSize: scaleFont(16),
     color: "#111827",
     fontWeight: "500",
   },
   resultItemEmail: {
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: "#6b7280",
-    marginTop: 2,
+    marginTop: scaleDimension(2),
   },
   errorText: {
     color: "#ef4444",
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
+    fontSize: scaleFont(12),
+    marginTop: scaleDimension(4),
+    marginLeft: scaleDimension(4),
   },
 });

@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   bookingAvatar: {
     width: scaleDimension(60),
     height: scaleDimension(60),
-    borderRadius: 999,
+    borderRadius: scaleDimension(999),
     overflow: "hidden",
     ...PLATFORM.shadowMd,
   },
@@ -467,10 +467,10 @@ const styles = StyleSheet.create({
   bookingAvatarText: {
     color: "white",
     fontWeight: "bold",
-    fontSize: scaleFont(22),
+    fontSize: scaleFont(18),
   },
   bookingAvatarTextCompleted: {
-    fontSize: scaleFont(16),
+    fontSize: scaleFont(14),
   },
   bookingInfo: {
     marginLeft: scaleDimension(14),
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: scaleDimension(12),
     paddingVertical: scaleDimension(6),
-    borderRadius: 999,
+    borderRadius: scaleDimension(999),
     gap: scaleDimension(6),
   },
   statusIconContainer: {
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     color: "#9333ea",
   },
   cardDivider: {
-    height: 1,
+    height: scaleDimension(1),
     backgroundColor: COLORS.borderLight,
     marginBottom: scaleDimension(12),
   },

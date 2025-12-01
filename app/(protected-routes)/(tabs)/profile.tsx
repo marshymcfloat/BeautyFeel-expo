@@ -1,11 +1,6 @@
 import { queryClient } from "@/components/Providers/TanstackProvider";
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
-import {
-  Toast,
-  ToastDescription,
-  ToastTitle,
-  useToast,
-} from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import {
   getEarningsStats,
   getMyPayslipReleases,
@@ -15,7 +10,7 @@ import {
 import { useAuth } from "@/lib/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils/currency";
 import { formatFullDate } from "@/lib/utils/dateTime";
-import { scaleDimension } from "@/lib/utils/responsive";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { getRoleDisplayName } from "@/lib/utils/role";
 import { supabase } from "@/lib/utils/supabase";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -88,79 +83,30 @@ function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
       return updatePassword(password);
     },
     onSuccess: () => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="success">
-            <ToastTitle>Success</ToastTitle>
-            <ToastDescription>Password updated successfully</ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.success("Password Updated", "Password updated successfully");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       onClose();
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "Failed to update password"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "Failed to update password");
     },
   });
 
   const handleSubmit = () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>Please fill in all fields</ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", "Please fill in all fields");
       return;
     }
 
     if (newPassword.length < 6) {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              Password must be at least 6 characters
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", "Password must be at least 6 characters");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>Passwords do not match</ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", "Passwords do not match");
       return;
     }
 
@@ -272,33 +218,13 @@ function ChangeNameModal({
       return updateEmployeeName(employee.id, newName);
     },
     onSuccess: () => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="success">
-            <ToastTitle>Success</ToastTitle>
-            <ToastDescription>Name updated successfully</ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.success("Name Updated", "Name updated successfully");
       onClose();
       // Invalidate queries to refresh employee data
       queryClient.invalidateQueries({ queryKey: ["employee"] });
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "Failed to update name"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "Failed to update name");
     },
   });
 
@@ -310,16 +236,7 @@ function ChangeNameModal({
 
   const handleSubmit = () => {
     if (!name.trim()) {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>Name cannot be empty</ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", "Name cannot be empty");
       return;
     }
 
@@ -678,7 +595,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: scaleDimension(100),
   },
   loadingContainer: {
     flex: 1,
@@ -687,26 +604,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9fafb",
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingHorizontal: scaleDimension(24),
+    paddingTop: scaleDimension(16),
+    paddingBottom: scaleDimension(24),
   },
   title: {
-    fontSize: 32,
+    fontSize: scaleFont(32),
     fontWeight: "bold",
     color: "#111827",
   },
   profileCardContainer: {
-    marginHorizontal: 24,
-    marginBottom: 24,
-    borderRadius: 24,
+    marginHorizontal: scaleDimension(24),
+    marginBottom: scaleDimension(24),
+    borderRadius: scaleDimension(24),
     overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: "#ec4899",
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: scaleDimension(8) },
         shadowOpacity: 0.3,
-        shadowRadius: 16,
+        shadowRadius: scaleDimension(16),
       },
       android: {
         elevation: 8,
@@ -714,16 +631,16 @@ const styles = StyleSheet.create({
     }),
   },
   profileCardGradient: {
-    padding: 24,
+    padding: scaleDimension(24),
   },
   profileCardHeader: {
     flexDirection: "row",
     alignItems: "center",
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 999,
+    width: scaleDimension(80),
+    height: scaleDimension(80),
+    borderRadius: scaleDimension(999),
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
@@ -731,16 +648,16 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.4)",
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: scaleFont(32),
     fontWeight: "bold",
     color: "white",
   },
   profileInfo: {
-    marginLeft: 16,
+    marginLeft: scaleDimension(16),
     flex: 1,
   },
   profileName: {
-    fontSize: 24,
+    fontSize: scaleFont(24),
     fontWeight: "bold",
     color: "white",
   },
@@ -755,47 +672,47 @@ const styles = StyleSheet.create({
   },
   badge: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingHorizontal: scaleDimension(12),
+    paddingVertical: scaleDimension(4),
+    borderRadius: scaleDimension(999),
   },
   badgeText: {
     color: "white",
-    fontSize: 14,
+    fontSize: scaleFont(14),
     fontWeight: "500",
   },
   section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: scaleDimension(24),
+    marginBottom: scaleDimension(24),
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
+    gap: scaleDimension(8),
+    marginBottom: scaleDimension(12),
   },
   sectionTitle: {
     color: "#111827",
     fontWeight: "700",
-    fontSize: 18,
+    fontSize: scaleFont(18),
   },
   earningsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: scaleDimension(12),
   },
   earningsCard: {
     flex: 1,
     minWidth: "45%",
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: scaleDimension(16),
+    padding: scaleDimension(16),
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: scaleDimension(2) },
         shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowRadius: scaleDimension(8),
       },
       android: {
         elevation: 3,
@@ -819,14 +736,14 @@ const styles = StyleSheet.create({
   },
   menuGroup: {
     backgroundColor: "white",
-    borderRadius: 16,
+    borderRadius: scaleDimension(16),
     overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: scaleDimension(2) },
         shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowRadius: scaleDimension(8),
       },
       android: {
         elevation: 3,
@@ -836,13 +753,13 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: scaleDimension(16),
+    paddingHorizontal: scaleDimension(16),
   },
   menuIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: scaleDimension(40),
+    height: scaleDimension(40),
+    borderRadius: scaleDimension(12),
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fdf2f8",
@@ -852,7 +769,7 @@ const styles = StyleSheet.create({
   },
   menuContent: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: scaleDimension(12),
   },
   menuTitle: {
     fontWeight: "500",
@@ -863,13 +780,13 @@ const styles = StyleSheet.create({
   },
   menuSubtitle: {
     color: "#6b7280",
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: scaleFont(14),
+    marginTop: scaleDimension(2),
   },
   menuDivider: {
-    height: 1,
+    height: scaleDimension(1),
     backgroundColor: "#f3f4f6",
-    marginHorizontal: 16,
+    marginHorizontal: scaleDimension(16),
   },
   payslipListContainer: {
     maxHeight: scaleDimension(400),
@@ -880,8 +797,8 @@ const styles = StyleSheet.create({
   },
   payslipCard: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: scaleDimension(16),
+    padding: scaleDimension(16),
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -942,8 +859,8 @@ const styles = StyleSheet.create({
   versionText: {
     textAlign: "center",
     color: "#9ca3af",
-    fontSize: 14,
-    marginBottom: 24,
+    fontSize: scaleFont(14),
+    marginBottom: scaleDimension(24),
   },
   modalContainer: {
     flex: 1,
@@ -976,7 +893,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   modalClose: {
-    fontSize: 24,
+    fontSize: scaleFont(20),
     color: "#6b7280",
   },
   modalBody: {
@@ -995,7 +912,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: scaleFont(16),
     color: "#111827",
     backgroundColor: "#f9fafb",
   },

@@ -316,6 +316,128 @@ export type Database = {
         }
         Relationships: []
       }
+      gift_certificate: {
+        Row: {
+          code: string
+          created_at: string
+          customer_email: string | null
+          customer_id: number | null
+          customer_name: string | null
+          expires_on: string | null
+          id: number
+          status: Database["public"]["Enums"]["gift_certificate_status"]
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          customer_email?: string | null
+          customer_id?: number | null
+          customer_name?: string | null
+          expires_on?: string | null
+          id?: number
+          status?: Database["public"]["Enums"]["gift_certificate_status"]
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          customer_email?: string | null
+          customer_id?: number | null
+          customer_name?: string | null
+          expires_on?: string | null
+          id?: number
+          status?: Database["public"]["Enums"]["gift_certificate_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_certificate_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_certificate_service_sets: {
+        Row: {
+          created_at: string
+          gift_certificate_id: number
+          id: number
+          quantity: number
+          service_set_id: number
+        }
+        Insert: {
+          created_at?: string
+          gift_certificate_id: number
+          id?: number
+          quantity?: number
+          service_set_id: number
+        }
+        Update: {
+          created_at?: string
+          gift_certificate_id?: number
+          id?: number
+          quantity?: number
+          service_set_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_certificate_service_sets_gift_certificate_id_fkey"
+            columns: ["gift_certificate_id"]
+            isOneToOne: false
+            referencedRelation: "gift_certificate"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_certificate_service_sets_service_set_id_fkey"
+            columns: ["service_set_id"]
+            isOneToOne: false
+            referencedRelation: "service_set"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_certificate_services: {
+        Row: {
+          created_at: string
+          gift_certificate_id: number
+          id: number
+          quantity: number
+          service_id: number
+        }
+        Insert: {
+          created_at?: string
+          gift_certificate_id: number
+          id?: number
+          quantity?: number
+          service_id: number
+        }
+        Update: {
+          created_at?: string
+          gift_certificate_id?: number
+          id?: number
+          quantity?: number
+          service_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_certificate_services_gift_certificate_id_fkey"
+            columns: ["gift_certificate_id"]
+            isOneToOne: false
+            referencedRelation: "gift_certificate"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_certificate_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payslip_attendance: {
         Row: {
           amount: number
@@ -698,25 +820,39 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          customer_id: number | null
+          expires_on: string | null
           id: number
-          used_at: string | null
+          status: Database["public"]["Enums"]["voucher_status"]
           value: number
         }
         Insert: {
           code: string
           created_at?: string
+          customer_id?: number | null
+          expires_on?: string | null
           id?: number
-          used_at?: string | null
+          status?: Database["public"]["Enums"]["voucher_status"]
           value: number
         }
         Update: {
           code?: string
           created_at?: string
+          customer_id?: number | null
+          expires_on?: string | null
           id?: number
-          used_at?: string | null
+          status?: Database["public"]["Enums"]["voucher_status"]
           value?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "voucher_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -849,6 +985,8 @@ export type Database = {
         Args: { p_email?: string; p_password?: string; p_user_id: string }
         Returns: Json
       }
+      update_expired_gift_certificates: { Args: never; Returns: undefined }
+      update_expired_vouchers: { Args: never; Returns: undefined }
     }
     Enums: {
       booking_status:
@@ -861,8 +999,10 @@ export type Database = {
         | "NO_SHOW"
       branch: "NAILS" | "SKIN" | "LASHES" | "MASSAGE"
       employee_role: "OWNER" | "CASHIER" | "MASSEUSE" | "WORKER"
+      gift_certificate_status: "ACTIVE" | "USED" | "EXPIRED"
       payslip_request_status: "PENDING" | "APPROVED" | "REJECTED"
       service_instance_status: "UNCLAIMED" | "CLAIMED" | "SERVED"
+      voucher_status: "ACTIVE" | "USED" | "EXPIRED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1001,8 +1141,10 @@ export const Constants = {
       ],
       branch: ["NAILS", "SKIN", "LASHES", "MASSAGE"],
       employee_role: ["OWNER", "CASHIER", "MASSEUSE", "WORKER"],
+      gift_certificate_status: ["ACTIVE", "USED", "EXPIRED"],
       payslip_request_status: ["PENDING", "APPROVED", "REJECTED"],
       service_instance_status: ["UNCLAIMED", "CLAIMED", "SERVED"],
+      voucher_status: ["ACTIVE", "USED", "EXPIRED"],
     },
   },
 } as const

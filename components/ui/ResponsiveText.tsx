@@ -47,11 +47,11 @@ const VARIANT_SIZES = {
   base: 14,
   md: 16,
   lg: 18,
-  xl: 20,
-  "2xl": 24,
-  "3xl": 30,
-  "4xl": 36,
-  "5xl": 48,
+  xl: 18, // Reduced from 20
+  "2xl": 20, // Reduced from 24
+  "3xl": 24, // Reduced from 30
+  "4xl": 28, // Reduced from 36
+  "5xl": 36, // Reduced from 48
 } as const;
 
 /**

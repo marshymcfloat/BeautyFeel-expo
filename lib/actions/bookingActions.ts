@@ -192,23 +192,114 @@ export async function createBookingAction(data: CreateBookingSchema) {
     let voucherDiscount = 0;
     let voucherId: number | null = null;
 
-    if (validated.voucherCode) {
+    // First, update any expired vouchers
+    const today = new Date().toISOString().split("T")[0];
+    await supabase
+      .from("voucher")
+      .update({ status: "EXPIRED" })
+      .eq("status", "ACTIVE")
+      .not("expires_on", "is", null)
+      .lt("expires_on", today);
+
+    // Use voucher ID if provided (from VoucherInput component)
+    if (validated.voucher && validated.voucher > 0) {
       const { data: voucher, error: voucherError } = await supabase
         .from("voucher")
-        .select("id, value, used_at")
-        .eq("code", validated.voucherCode)
-        .is("used_at", null)
+        .select("id, value, status, expires_on")
+        .eq("id", validated.voucher)
+        .eq("status", "ACTIVE")
         .maybeSingle();
 
       if (voucherError || !voucher) {
         return {
           success: false,
-          error: "Invalid or already used voucher code",
+          error: "Invalid or expired voucher. Please remove and reapply.",
         };
       }
 
+      // Double-check expiration
+      if (voucher.expires_on) {
+        const expiryDate = new Date(voucher.expires_on);
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+
+        if (expiryDate < todayDate) {
+          await supabase
+            .from("voucher")
+            .update({ status: "EXPIRED" })
+            .eq("id", voucher.id);
+
+          return {
+            success: false,
+            error: "This voucher has expired",
+          };
+        }
+      }
+
       voucherId = voucher.id;
-      voucherDiscount = Math.min(voucher.value, grandTotal); // Can't discount more than total
+      // Use grandDiscount from form if provided, otherwise use voucher value
+      voucherDiscount = Math.min(
+        validated.grandDiscount || voucher.value,
+        grandTotal
+      );
+    } else if (validated.voucherCode) {
+      // Fallback: use voucherCode for backward compatibility
+      const { data: voucher, error: voucherError } = await supabase
+        .from("voucher")
+        .select("id, value, status, expires_on")
+        .eq("code", validated.voucherCode.toUpperCase())
+        .eq("status", "ACTIVE")
+        .maybeSingle();
+
+      if (voucherError || !voucher) {
+        // Check if voucher exists but is not active
+        const { data: voucherExists } = await supabase
+          .from("voucher")
+          .select("status")
+          .eq("code", validated.voucherCode.toUpperCase())
+          .maybeSingle();
+
+        if (voucherExists) {
+          if (voucherExists.status === "USED") {
+            return {
+              success: false,
+              error: "This voucher has already been used",
+            };
+          }
+          if (voucherExists.status === "EXPIRED") {
+            return {
+              success: false,
+              error: "This voucher has expired",
+            };
+          }
+        }
+        return {
+          success: false,
+          error: "Invalid voucher code",
+        };
+      }
+
+      // Double-check expiration
+      if (voucher.expires_on) {
+        const expiryDate = new Date(voucher.expires_on);
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+
+        if (expiryDate < todayDate) {
+          await supabase
+            .from("voucher")
+            .update({ status: "EXPIRED" })
+            .eq("id", voucher.id);
+
+          return {
+            success: false,
+            error: "This voucher has expired",
+          };
+        }
+      }
+
+      voucherId = voucher.id;
+      voucherDiscount = Math.min(voucher.value, grandTotal);
     }
 
     const finalTotal = grandTotal - voucherDiscount;
@@ -375,7 +466,7 @@ export async function createBookingAction(data: CreateBookingSchema) {
     if (voucherId) {
       await supabase
         .from("voucher")
-        .update({ used_at: new Date().toISOString() })
+        .update({ status: "USED" })
         .eq("id", voucherId);
     }
 
@@ -398,15 +489,19 @@ export async function createBookingAction(data: CreateBookingSchema) {
 
     // Send confirmation email if booking is more than 1 hour away
     // Do this asynchronously so it doesn't block booking creation
+    // Using dynamic import to avoid circular dependency issues
     (async () => {
       try {
-        const { sendBookingConfirmationIfNeeded } = await import(
-          "../actions/emailReminderActions"
-        );
-        await sendBookingConfirmationIfNeeded(booking.id);
+        // Use dynamic import with error handling to avoid module loading issues
+        const emailModule = await import("./emailReminderActions").catch(() => null);
+        if (emailModule?.sendBookingConfirmationIfNeeded) {
+          await emailModule.sendBookingConfirmationIfNeeded(booking.id).catch((err) => {
+            console.error("Error sending confirmation email:", err);
+          });
+        }
       } catch (error) {
-        console.error("Error sending confirmation email:", error);
-        // Don't fail the booking creation if email fails
+        // Silently fail - email sending is optional and shouldn't block booking creation
+        console.warn("Email reminder module not available:", error);
       }
     })();
 

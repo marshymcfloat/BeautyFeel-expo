@@ -1,4 +1,5 @@
 import { useAuth } from "@/lib/hooks/useAuth";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
 import { Slot, useRouter } from "expo-router";
 import React, { useEffect } from "react";
@@ -77,8 +78,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: scaleDimension(16),
     color: "#6b7280",
-    fontSize: 16,
+    fontSize: scaleFont(16),
   },
 });

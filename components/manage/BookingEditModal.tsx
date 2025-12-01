@@ -3,12 +3,7 @@ import TimePicker from "@/components/bookings/TimePicker";
 import type { BookingWithServices } from "@/components/bookings/types";
 import { queryClient } from "@/components/Providers/TanstackProvider";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import {
-  Toast,
-  ToastDescription,
-  ToastTitle,
-  useToast,
-} from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast";
 import { updateBookingAction } from "@/lib/actions/bookingActions";
 import { formatDateString } from "@/lib/utils/dateTime";
 import {
@@ -95,46 +90,17 @@ export default function BookingEditModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
         queryClient.invalidateQueries({ queryKey: ["bookings"] });
-        queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
+        if (booking) {
+          queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
+        }
         onSuccess();
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Booking updated successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Success", "Booking updated successfully");
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to update booking"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to update booking");
       }
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 

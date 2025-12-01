@@ -1,6 +1,7 @@
 import { BookingCard } from "@/components/bookings/BookingCard";
 import BookingDetailsModal from "@/components/bookings/BookingDetailsModal";
 import BookingFormModal from "@/components/bookings/BookingFormModal";
+import ClaimGiftCertificateModal from "@/components/bookings/ClaimGiftCertificateModal";
 import { DaySelector } from "@/components/bookings/DaySelector";
 import type { BookingWithServices } from "@/components/bookings/types";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -8,6 +9,8 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { GradientHeader } from "@/components/ui/GradientHeader";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
+import { useToast } from "@/components/ui/toast";
+import type { GiftCertificateWithRelations } from "@/lib/actions/giftCertificateActions";
 import {
   claimServiceInstanceAction,
   serveServiceInstanceAction,
@@ -26,13 +29,20 @@ import {
   scaleDimension,
 } from "@/lib/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
-import { Calendar, Plus, Sparkles } from "lucide-react-native";
+import { Calendar, Gift, Plus, RefreshCw, Sparkles } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 
 export default function BookingsScreen() {
   const { user } = useAuth();
   const { isSmallPhone } = useResponsive();
+  const toast = useToast();
   const today = formatDateString(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const containerPadding = getContainerPadding();
@@ -50,8 +60,14 @@ export default function BookingsScreen() {
   const [selectedBooking, setSelectedBooking] =
     useState<BookingWithServices | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showClaimGiftCertificateModal, setShowClaimGiftCertificateModal] =
+    useState(false);
+  const [giftCertificateForBooking, setGiftCertificateForBooking] =
+    useState<GiftCertificateWithRelations | null>(null);
 
-  const { bookings, loading, error } = useRealtimeBookings(selectedDate);
+  const { bookings, loading, error, refetch } =
+    useRealtimeBookings(selectedDate);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const sortedBookings = useMemo(() => {
     if (!bookings || bookings.length === 0) return [];
@@ -64,10 +80,16 @@ export default function BookingsScreen() {
     try {
       const result = await claimServiceInstanceAction(instanceId, user.id);
       if (!result.success) {
-        console.error("Failed to claim service:", result.error);
+        toast.error("Error", result.error || "Failed to claim service");
+      } else {
+        toast.success("Service Claimed", "Service claimed successfully");
       }
     } catch (error) {
       console.error("Error claiming service:", error);
+      toast.error(
+        "Error",
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     } finally {
       setClaimingServiceId(null);
     }
@@ -79,10 +101,19 @@ export default function BookingsScreen() {
     try {
       const result = await serveServiceInstanceAction(instanceId, user.id);
       if (!result.success) {
-        console.error("Failed to serve service:", result.error);
+        toast.error("Error", result.error || "Failed to serve service");
+      } else {
+        toast.success(
+          "Service Served",
+          "Service marked as served successfully"
+        );
       }
     } catch (error) {
       console.error("Error serving service:", error);
+      toast.error(
+        "Error",
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     } finally {
       setServingServiceId(null);
     }
@@ -94,10 +125,16 @@ export default function BookingsScreen() {
     try {
       const result = await unclaimServiceInstanceAction(instanceId, user.id);
       if (!result.success) {
-        console.error("Failed to unclaim service:", result.error);
+        toast.error("Error", result.error || "Failed to unclaim service");
+      } else {
+        toast.success("Service Unclaimed", "Service unclaimed successfully");
       }
     } catch (error) {
       console.error("Error unclaiming service:", error);
+      toast.error(
+        "Error",
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     } finally {
       setUnclaimingServiceId(null);
     }
@@ -109,10 +146,16 @@ export default function BookingsScreen() {
     try {
       const result = await unserveServiceInstanceAction(instanceId, user.id);
       if (!result.success) {
-        console.error("Failed to unserve service:", result.error);
+        toast.error("Error", result.error || "Failed to unserve service");
+      } else {
+        toast.success("Service Unserved", "Service unserved successfully");
       }
     } catch (error) {
       console.error("Error unserving service:", error);
+      toast.error(
+        "Error",
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     } finally {
       setUnservingServiceId(null);
     }
@@ -120,9 +163,30 @@ export default function BookingsScreen() {
 
   const displayDate = formatFullDate(selectedDate);
 
+  const handleRefetch = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  const handleGiftCertificateClaimed = (
+    giftCertificate: GiftCertificateWithRelations
+  ) => {
+    // Booking is automatically created, just refresh the list
+    setShowClaimGiftCertificateModal(false);
+    // Refresh bookings to show the newly created booking
+    refetch();
+  };
+
   const AddButton = () => (
     <Pressable
-      onPress={() => setShowBookingModal(true)}
+      onPress={() => {
+        setGiftCertificateForBooking(null);
+        setShowBookingModal(true);
+      }}
       style={({ pressed }) => [
         styles.addButton,
         pressed && styles.addButtonPressed,
@@ -135,6 +199,49 @@ export default function BookingsScreen() {
         style={styles.addButtonGradient}
       >
         <Plus size={22} color="white" />
+      </LinearGradient>
+    </Pressable>
+  );
+
+  const ClaimGiftCertificateButton = () => (
+    <Pressable
+      onPress={() => setShowClaimGiftCertificateModal(true)}
+      style={({ pressed }) => [
+        styles.claimGiftButton,
+        pressed && styles.claimGiftButtonPressed,
+      ]}
+    >
+      <LinearGradient
+        colors={["rgba(255, 255, 255, 0.3)", "rgba(255, 255, 255, 0.2)"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.claimGiftButtonGradient}
+      >
+        <Gift size={20} color="white" />
+      </LinearGradient>
+    </Pressable>
+  );
+
+  const RefreshButton = () => (
+    <Pressable
+      onPress={handleRefetch}
+      disabled={isRefreshing || loading}
+      style={({ pressed }) => [
+        styles.refreshButton,
+        (pressed || isRefreshing || loading) && styles.refreshButtonPressed,
+      ]}
+    >
+      <LinearGradient
+        colors={["rgba(255, 255, 255, 0.25)", "rgba(255, 255, 255, 0.15)"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.refreshButtonGradient}
+      >
+        {isRefreshing || loading ? (
+          <ActivityIndicator size="small" color="white" />
+        ) : (
+          <RefreshCw size={18} color="white" />
+        )}
       </LinearGradient>
     </Pressable>
   );
@@ -156,7 +263,15 @@ export default function BookingsScreen() {
           title="Bookings"
           subtitle="Manage your appointments"
           icon={<Calendar size={28} color="white" />}
-          rightElement={<AddButton />}
+          rightElement={
+            <View style={styles.headerButtons}>
+              <RefreshButton />
+              <View style={styles.buttonSpacer} />
+              <ClaimGiftCertificateButton />
+              <View style={styles.buttonSpacer} />
+              <AddButton />
+            </View>
+          }
         />
 
         <DaySelector
@@ -219,11 +334,24 @@ export default function BookingsScreen() {
 
       <BookingFormModal
         visible={showBookingModal}
-        onClose={() => setShowBookingModal(false)}
+        onClose={() => {
+          setShowBookingModal(false);
+          setSelectedBooking(null);
+          setGiftCertificateForBooking(null);
+        }}
         defaultDate={selectedDate}
+        existingBooking={selectedBooking}
+        giftCertificate={giftCertificateForBooking}
         onSuccess={() => {
           setShowBookingModal(false);
+          setSelectedBooking(null);
+          setGiftCertificateForBooking(null);
         }}
+      />
+      <ClaimGiftCertificateModal
+        visible={showClaimGiftCertificateModal}
+        onClose={() => setShowClaimGiftCertificateModal(false)}
+        onClaimSuccess={handleGiftCertificateClaimed}
       />
 
       <BookingDetailsModal
@@ -293,5 +421,49 @@ const styles = StyleSheet.create({
   bookingsDate: {
     color: COLORS.primary,
     fontWeight: "600",
+  },
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(8),
+  },
+  buttonSpacer: {
+    width: scaleDimension(8),
+  },
+  refreshButton: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    overflow: "hidden",
+    ...PLATFORM.shadowMd,
+  },
+  refreshButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  refreshButtonGradient: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  claimGiftButton: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    overflow: "hidden",
+    ...PLATFORM.shadowMd,
+  },
+  claimGiftButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  claimGiftButtonGradient: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

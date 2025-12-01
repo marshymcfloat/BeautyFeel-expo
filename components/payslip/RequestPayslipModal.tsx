@@ -22,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 interface RequestPayslipModalProps {
   visible: boolean;
@@ -50,48 +50,17 @@ export default function RequestPayslipModal({
         queryClient.invalidateQueries({ queryKey: ["payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["unpaid-payslip-amount"] });
 
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Payslip Request Created</ToastTitle>
-              <ToastDescription>
-                Your request for {formatCurrency(result.requested_amount)} has
-                been submitted.
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Payslip Request Created",
+          `Your request for ${formatCurrency(result.requested_amount)} has been submitted.`
+        );
         onClose();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to create payslip request"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to create payslip request");
       }
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 

@@ -1,4 +1,5 @@
 import { useAuth } from "@/lib/hooks/useAuth";
+import { scaleFont } from "@/lib/utils/responsive";
 import { Tabs } from "expo-router";
 import {
   Calendar,
@@ -10,7 +11,7 @@ import {
 import { Platform, StyleSheet, View } from "react-native";
 
 export default function TabsLayout() {
-  const { hasRole, loading } = useAuth();
+  const { hasRole } = useAuth();
   const isOwner = hasRole("owner");
 
   return (
@@ -51,7 +52,7 @@ export default function TabsLayout() {
           alignItems: "center",
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: scaleFont(11),
           fontWeight: "600",
           marginTop: 4,
         },

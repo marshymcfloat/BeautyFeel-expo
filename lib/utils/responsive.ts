@@ -64,19 +64,29 @@ export function responsive<T>(values: {
 
 /**
  * Scale font size based on screen width and pixel ratio
+ * More conservative scaling - keeps text readable without being too large
  */
 export function scaleFont(size: number): number {
   const scale = SCREEN_WIDTH / BREAKPOINTS.sm;
-  const newSize = size * Math.min(scale, 1.2); // Max 20% increase
+  // More conservative scaling: scale down for small screens, minimal scale up for larger
+  // For smaller screens (< 375px), scale down (min 0.85)
+  // For larger screens, minimal scale up (max 1.05x) to prevent text from being too large
+  const clampedScale = Math.max(0.85, Math.min(scale, 1.05));
+  const newSize = size * clampedScale;
   return Math.round(PixelRatio.roundToNearestPixel(newSize));
 }
 
 /**
  * Scale dimension (width/height/padding/margin) based on screen width
+ * More conservative scaling for better cross-platform consistency
  */
 export function scaleDimension(size: number): number {
   const scale = SCREEN_WIDTH / BREAKPOINTS.sm;
-  const newSize = size * Math.min(scale, 1.15); // Max 15% increase
+  // More conservative scaling: scale down for small screens, minimal scale up
+  // For smaller screens (< 375px), scale down (min 0.85)
+  // For larger screens, minimal scale up (max 1.05x)
+  const clampedScale = Math.max(0.85, Math.min(scale, 1.05));
+  const newSize = size * clampedScale;
   return Math.round(PixelRatio.roundToNearestPixel(newSize));
 }
 

@@ -2,9 +2,17 @@ import type { Database } from "@/database.types";
 import type { ServiceSetWithItems } from "@/lib/actions/serviceSetActions";
 import { COLORS } from "@/lib/utils/constants";
 import { formatCurrency } from "@/lib/utils/currency";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { Minus, Plus } from "lucide-react-native";
 import React from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 type Service = Database["public"]["Tables"]["service"]["Row"];
 
@@ -27,6 +35,7 @@ interface SelectedItemsListProps {
   onUpdateServiceQuantity: (serviceId: number, delta: number) => void;
   onRemoveServiceSet: (serviceSetId: number) => void;
   onUpdateServiceSetQuantity: (serviceSetId: number, delta: number) => void;
+  grandDiscount?: number;
 }
 
 export function SelectedItemsList({
@@ -36,6 +45,7 @@ export function SelectedItemsList({
   onUpdateServiceQuantity,
   onRemoveServiceSet,
   onUpdateServiceSetQuantity,
+  grandDiscount = 0,
 }: SelectedItemsListProps) {
   const servicesTotal = services.reduce(
     (sum, s) => sum + (s.service.price || 0) * s.quantity,
@@ -45,7 +55,8 @@ export function SelectedItemsList({
     (sum, s) => sum + (s.serviceSet.price || 0) * s.quantity,
     0
   );
-  const grandTotal = servicesTotal + serviceSetsTotal;
+  const subtotal = servicesTotal + serviceSetsTotal;
+  const grandTotal = Math.max(0, subtotal - grandDiscount);
 
   const hasItems = services.length > 0 || serviceSets.length > 0;
 
@@ -59,7 +70,6 @@ export function SelectedItemsList({
 
   return (
     <View style={styles.container}>
-      {/* Services Section */}
       {services.length > 0 && (
         <View style={styles.section}>
           {services.length > 0 && serviceSets.length > 0 && (
@@ -241,10 +251,24 @@ export function SelectedItemsList({
       {/* Grand Total */}
       {hasItems && (
         <View style={styles.grandTotalContainer}>
-          <Text style={styles.grandTotalLabel}>Total</Text>
-          <Text style={styles.grandTotalPrice}>
-            {formatCurrency(grandTotal)}
-          </Text>
+          <View style={styles.totalDetails}>
+            <Text style={styles.grandTotalLabel}>Subtotal</Text>
+            <Text style={styles.subtotalPrice}>{formatCurrency(subtotal)}</Text>
+          </View>
+          {grandDiscount > 0 && (
+            <View style={styles.totalDetails}>
+              <Text style={styles.discountLabel}>Discount</Text>
+              <Text style={styles.discountPrice}>
+                -{formatCurrency(grandDiscount)}
+              </Text>
+            </View>
+          )}
+          <View style={[styles.totalDetails, styles.finalTotal]}>
+            <Text style={styles.grandTotalLabel}>Total</Text>
+            <Text style={styles.grandTotalPrice}>
+              {formatCurrency(grandTotal)}
+            </Text>
+          </View>
         </View>
       )}
     </View>
@@ -266,18 +290,18 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: COLORS.textSecondary,
-    fontSize: 14,
+    fontSize: scaleFont(14),
   },
   section: {
-    gap: 8,
+    gap: scaleDimension(8),
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: scaleFont(12),
     fontWeight: "600",
     color: COLORS.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: scaleDimension(4),
   },
   itemsListContainer: {
     maxHeight: 300,
@@ -325,32 +349,32 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   itemTitle: {
-    fontSize: 15,
+    fontSize: scaleFont(15),
     fontWeight: "600",
     color: COLORS.text,
     flex: 1,
   },
   serviceSetBadge: {
     backgroundColor: "#fdf2f8",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: scaleDimension(6),
+    paddingVertical: scaleDimension(2),
+    borderRadius: scaleDimension(4),
   },
   serviceSetBadgeText: {
-    fontSize: 10,
+    fontSize: scaleFont(10),
     fontWeight: "600",
     color: "#ec4899",
   },
   itemSubtitle: {
-    fontSize: 13,
+    fontSize: scaleFont(13),
     color: COLORS.textSecondary,
-    marginBottom: 2,
+    marginBottom: scaleDimension(2),
   },
   itemDescription: {
-    fontSize: 12,
+    fontSize: scaleFont(12),
     color: "#9ca3af",
     fontStyle: "italic",
-    marginTop: 2,
+    marginTop: scaleDimension(2),
   },
   quantityControls: {
     flexDirection: "row",
@@ -375,22 +399,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3f4f6",
   },
   quantityText: {
-    fontSize: 14,
+    fontSize: scaleFont(14),
     fontWeight: "600",
     color: COLORS.text,
-    minWidth: 24,
+    minWidth: scaleDimension(24),
     textAlign: "center",
   },
   itemFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 10,
+    paddingTop: scaleDimension(10),
     borderTopWidth: 1,
     borderTopColor: "#f3f4f6",
   },
   itemTotalPrice: {
-    fontSize: 16,
+    fontSize: scaleFont(16),
     fontWeight: "700",
     color: COLORS.text,
   },
@@ -405,29 +429,53 @@ const styles = StyleSheet.create({
   },
   removeButtonText: {
     color: COLORS.error,
-    fontSize: 11,
+    fontSize: scaleFont(11),
     fontWeight: "600",
   },
   grandTotalContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 16,
-    marginTop: 4,
+    paddingTop: scaleDimension(16),
+    marginTop: scaleDimension(4),
     borderTopWidth: 2,
     borderTopColor: COLORS.border,
     backgroundColor: "#f9fafb",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: scaleDimension(16),
+    paddingVertical: scaleDimension(12),
+    borderRadius: scaleDimension(12),
+    gap: scaleDimension(8),
+  },
+  totalDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   grandTotalLabel: {
-    fontSize: 18,
+    fontSize: scaleFont(16),
     fontWeight: "700",
     color: COLORS.text,
   },
+  subtotalPrice: {
+    fontSize: scaleFont(16),
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+  discountLabel: {
+    fontSize: scaleFont(14),
+    fontWeight: "600",
+    color: "#10b981",
+  },
+  discountPrice: {
+    fontSize: scaleFont(14),
+    fontWeight: "600",
+    color: "#10b981",
+  },
+  finalTotal: {
+    marginTop: scaleDimension(4),
+    paddingTop: scaleDimension(8),
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
   grandTotalPrice: {
-    fontSize: 26,
+    fontSize: scaleFont(22),
     fontWeight: "800",
     color: COLORS.primary,
   },

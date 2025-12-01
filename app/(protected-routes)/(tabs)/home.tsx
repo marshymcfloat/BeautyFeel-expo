@@ -13,12 +13,6 @@ import React, { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 // Lazy load heavy components using dynamic imports
-let AttendanceManager: React.ComponentType<any> | null = null;
-let AttendanceCalendar: React.ComponentType<any> | null = null;
-let EmployeeStatsCards: React.ComponentType<any> | null = null;
-let RequestPayslipSection: React.ComponentType<any> | null = null;
-let PayslipRequestsManager: React.ComponentType<any> | null = null;
-let EmployeePayslipPermissions: React.ComponentType<any> | null = null;
 
 // Loading fallback component with skeleton
 function ComponentLoader() {
@@ -60,7 +54,7 @@ function LazyComponent({
 }
 
 export default function HomeScreen() {
-  const { hasRole, loading, employee } = useAuth();
+  const { hasRole, loading } = useAuth();
   const { isTablet, isSmallPhone } = useResponsive();
   const isOwner = hasRole("owner");
 
@@ -241,20 +235,20 @@ const styles = StyleSheet.create({
   },
   decorativeCircle1: {
     position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: scaleDimension(120),
+    height: scaleDimension(120),
+    borderRadius: scaleDimension(60),
     backgroundColor: "rgba(255, 255, 255, 0.1)",
-    top: -40,
-    right: -40,
+    top: scaleDimension(-40),
+    right: scaleDimension(-40),
   },
   decorativeCircle2: {
     position: "absolute",
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: scaleDimension(80),
+    height: scaleDimension(80),
+    borderRadius: scaleDimension(40),
     backgroundColor: "rgba(255, 255, 255, 0.08)",
-    bottom: -20,
-    right: 40,
+    bottom: scaleDimension(-20),
+    right: scaleDimension(40),
   },
 });

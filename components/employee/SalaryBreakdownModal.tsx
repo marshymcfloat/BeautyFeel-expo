@@ -78,7 +78,7 @@ export default function SalaryBreakdownModal({
           </View>
 
           {isLoading ? (
-            <LoadingState message="Loading salary breakdown..." />
+            <LoadingState variant="skeleton" />
           ) : !breakdown ? (
             <ErrorState message="Unable to load salary breakdown" />
           ) : (

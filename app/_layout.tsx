@@ -2,6 +2,7 @@ import "@/app/global.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import TanstackProvider from "@/components/Providers/TanstackProvider";
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
+import { ToastContainer } from "@/components/ui/toast/ToastContainer";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -33,6 +34,7 @@ export default function RootLayout() {
               <Stack.Screen name="(protected-routes)" />
             </Stack>
           </View>
+          <ToastContainer />
         </TanstackProvider>
       </GluestackUIProvider>
     </ErrorBoundary>

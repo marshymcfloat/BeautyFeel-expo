@@ -27,7 +27,7 @@ export function GradientHeader({
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={colors}
+        colors={[...colors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.gradient}

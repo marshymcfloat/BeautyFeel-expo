@@ -26,7 +26,7 @@ import {
 import { z } from "zod";
 import { FormField } from "../form/FormField";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 type Service = Database["public"]["Tables"]["service"]["Row"];
 type Branch = Database["public"]["Enums"]["branch"];
@@ -232,37 +232,21 @@ export default function ServiceSetFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["service-sets"] });
         queryClient.invalidateQueries({ queryKey: ["all-service-sets"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>
-                Service set created successfully
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Service Set Created",
+          "Service set created successfully"
+        );
         reset();
         setSelectedServiceIds([]);
         setServicePrices(new Map());
         onClose();
         onSuccess?.();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to create service set"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to create service set");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to create service set");
     },
   });
 
@@ -275,37 +259,21 @@ export default function ServiceSetFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["service-sets"] });
         queryClient.invalidateQueries({ queryKey: ["all-service-sets"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>
-                Service set updated successfully
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Service Set Updated",
+          "Service set updated successfully"
+        );
         reset();
         setSelectedServiceIds([]);
         setServicePrices(new Map());
         onClose();
         onSuccess?.();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to update service set"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to update service set");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to update service set");
     },
   });
 

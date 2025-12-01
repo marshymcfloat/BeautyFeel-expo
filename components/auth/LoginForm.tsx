@@ -1,5 +1,6 @@
 import { authLoginAction } from "@/lib/actions/authActions";
 import { supabase } from "@/lib/utils/supabase";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { authLoginSchema, LoginSchemaTypes } from "@/lib/zod-schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ import { useForm } from "react-hook-form";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { FormField } from "../form/FormField";
 import RotatingSpinner from "../ui/RotatingSpinner";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 function LoadingSpinner({ color = "white" }: { color?: string }) {
   return (
@@ -50,23 +51,7 @@ export default function LoginForm({
 
         if (!data.success) {
           console.error("Login failed:", data.error);
-          toast.show({
-            placement: "top",
-            duration: 3000,
-            render: ({ id }) => {
-              const uniqueToastId = "toast-" + id;
-              return (
-                <Toast
-                  variant="outline"
-                  nativeID={uniqueToastId}
-                  action="error"
-                >
-                  <ToastTitle>Login error</ToastTitle>
-                  <ToastDescription>{data.error}</ToastDescription>
-                </Toast>
-              );
-            },
-          });
+          toast.error("Login Failed", data.error);
           return;
         }
 
@@ -85,19 +70,10 @@ export default function LoginForm({
 
         if (sessionError || !session) {
           console.error("Session not found after login:", sessionError);
-          toast.show({
-            placement: "top",
-            duration: 3000,
-            render: ({ id }) => (
-              <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-                <ToastTitle>Session Error</ToastTitle>
-                <ToastDescription>
-                  Login succeeded but session could not be established. Please
-                  try again.
-                </ToastDescription>
-              </Toast>
-            ),
-          });
+          toast.error(
+            "Session Error",
+            "Login succeeded but session could not be established. Please try again."
+          );
           return;
         }
 
@@ -108,36 +84,20 @@ export default function LoginForm({
         onSuccess(false);
       } catch (error) {
         console.error("Error in onSuccess callback:", error);
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Unexpected Error</ToastTitle>
-              <ToastDescription>
-                {error instanceof Error
-                  ? error.message
-                  : "An unexpected error occurred"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error(
+          "Unexpected Error",
+          error instanceof Error
+            ? error.message
+            : "An unexpected error occurred"
+        );
       }
     },
     onError: (error) => {
       console.error("Mutation onError called:", error);
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Login Failed</ToastTitle>
-            <ToastDescription>
-              {error.message || "Something went wrong. Please try again."}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error(
+        "Login Failed",
+        error.message || "Something went wrong. Please try again."
+      );
     },
     onSettled: (data, error) => {
       console.log("Mutation onSettled called", {
@@ -211,34 +171,35 @@ export default function LoginForm({
 
 const styles = StyleSheet.create({
   signInButtonContainer: {
-    marginTop: 24,
-    borderRadius: 12,
+    marginTop: scaleDimension(24),
+    borderRadius: scaleDimension(12),
     overflow: "hidden",
   },
   signInButtonGradient: {
-    paddingVertical: 16,
+    paddingVertical: scaleDimension(16),
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    minHeight: 52,
+    minHeight: scaleDimension(52),
   },
   spinnerContainer: {
-    marginRight: 10,
+    marginRight: scaleDimension(10),
     justifyContent: "center",
     alignItems: "center",
   },
   signInButtonText: {
     color: "white",
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: scaleFont(16),
   },
   cancelButton: {
-    marginTop: 16,
-    paddingVertical: 12,
+    marginTop: scaleDimension(16),
+    paddingVertical: scaleDimension(12),
   },
   cancelButtonText: {
     textAlign: "center",
     color: "#6b7280",
     fontWeight: "500",
+    fontSize: scaleFont(14),
   },
 });

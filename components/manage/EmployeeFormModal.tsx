@@ -29,7 +29,7 @@ import {
 } from "react-native";
 import { FormField } from "../form/FormField";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 interface EmployeeFormModalProps {
   visible: boolean;
@@ -56,11 +56,11 @@ export default function EmployeeFormModal({
 
   const form = useForm<EmployeeFormData & { password?: string | null }>({
     resolver: zodResolver(formSchema as any),
-    defaultValues: existingEmployee
+        defaultValues: existingEmployee
       ? {
           name: existingEmployee.name || "",
           email: "", // Email will be fetched if needed, but we don't store it in employee table
-          password: null,
+          password: undefined,
           role: existingEmployee.role,
           salary: existingEmployee.salary || 0,
           commission_rate: existingEmployee.commission_rate || 0,
@@ -70,7 +70,7 @@ export default function EmployeeFormModal({
       : {
           name: "",
           email: "",
-          password: "",
+          password: undefined,
           role: "WORKER",
           salary: 0,
           commission_rate: 0,
@@ -98,7 +98,7 @@ export default function EmployeeFormModal({
         reset({
           name: existingEmployee.name || "",
           email: "", // Email not stored in employee table
-          password: null,
+          password: undefined,
           role: existingEmployee.role,
           salary: existingEmployee.salary || 0,
           commission_rate: existingEmployee.commission_rate || 0,
@@ -131,33 +131,16 @@ export default function EmployeeFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["employees"] });
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Employee created successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Employee Created", "Employee created successfully");
         reset();
         onClose();
         onSuccess?.();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to create employee"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to create employee");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to create employee");
     },
   });
 
@@ -179,32 +162,15 @@ export default function EmployeeFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["employees"] });
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Success</ToastTitle>
-              <ToastDescription>Employee updated successfully</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Employee Updated", "Employee updated successfully");
         onClose();
         onSuccess?.();
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to update employee"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to update employee");
       }
+    },
+    onError: (error) => {
+      toast.error("Error", error.message || "Failed to update employee");
     },
   });
 

@@ -4,6 +4,7 @@ import {
   createBookingAction,
   updateBookingAction,
 } from "@/lib/actions/bookingActions";
+import type { GiftCertificateWithRelations } from "@/lib/actions/giftCertificateActions";
 import type { ServiceSetWithItems } from "@/lib/actions/serviceSetActions";
 import { getServiceSetsForBranch } from "@/lib/actions/serviceSetActions";
 import { BOOKING_STATUS, SERVICE_STATUS } from "@/lib/utils/constants";
@@ -30,8 +31,9 @@ import {
   View,
 } from "react-native";
 import { FormField } from "../form/FormField";
+import VoucherInput from "../form/Input fields/voucher-input";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 import CustomerSearchInput from "./CustomerSearchInput";
 import DatePicker from "./DatePicker";
 import { SelectedItemsList } from "./SelectedItemsList";
@@ -46,6 +48,7 @@ interface BookingFormModalProps {
   onClose: () => void;
   defaultDate?: string;
   existingBooking?: BookingWithServices | null;
+  giftCertificate?: GiftCertificateWithRelations | null;
   onSuccess?: () => void;
 }
 
@@ -66,6 +69,7 @@ export default function BookingFormModal({
   onClose,
   defaultDate,
   existingBooking,
+  giftCertificate,
   onSuccess,
 }: BookingFormModalProps) {
   const isEditMode = !!existingBooking;
@@ -115,6 +119,8 @@ export default function BookingFormModal({
         serviceSets: [],
         notes: existingBooking.notes || "",
         voucherCode: "",
+        voucher: existingBooking.voucher_id || null,
+        grandDiscount: existingBooking.grandDiscount || 0,
       };
     }
 
@@ -129,6 +135,8 @@ export default function BookingFormModal({
       serviceSets: [],
       notes: "",
       voucherCode: "",
+      voucher: null,
+      grandDiscount: 0,
     };
   };
 
@@ -206,7 +214,7 @@ export default function BookingFormModal({
     setValue("customerEmail", "");
   };
 
-  // Reset form when modal opens/closes or when existingBooking changes
+  // Reset form when modal opens/closes or when existingBooking/giftCertificate changes
   useEffect(() => {
     if (visible && existingBooking) {
       const initialValues = getInitialValues();
@@ -216,23 +224,48 @@ export default function BookingFormModal({
         setSelectedCustomer(existingBooking.customer);
       }
     } else if (visible && !existingBooking) {
+      // If gift certificate is provided, pre-fill customer info
+      const customerId = giftCertificate?.customer_id || 0;
+      const customerName =
+        giftCertificate?.customer_name || giftCertificate?.customer?.name || "";
+      const customerEmail =
+        giftCertificate?.customer_email ||
+        giftCertificate?.customer?.email ||
+        "";
+
       reset({
-        customerId: 0,
-        customerName: "",
+        customerId,
+        customerName,
         appointmentDate: defaultDate || "",
         appointmentTime: "",
         branch: "NAILS" as const,
-        customerEmail: "",
+        customerEmail,
         services: [],
         serviceSets: [],
         notes: "",
         voucherCode: "",
+        voucher: null,
+        grandDiscount: 0,
       });
       setSelectedServices([]);
       setSelectedServiceSets([]);
-      setSelectedCustomer(null);
+      if (giftCertificate?.customer) {
+        // Fetch full customer data if needed
+        setSelectedCustomer({
+          id: giftCertificate.customer.id,
+          name: giftCertificate.customer.name,
+          email: giftCertificate.customer.email,
+          phone: null,
+          spent: null,
+          last_transaction: null,
+          created_at: "",
+          updated_at: "",
+        });
+      } else {
+        setSelectedCustomer(null);
+      }
     }
-  }, [visible, existingBooking, defaultDate, reset]);
+  }, [visible, existingBooking, giftCertificate, defaultDate, reset]);
 
   // Map services for edit mode when services data is available
   useEffect(() => {
@@ -296,33 +329,84 @@ export default function BookingFormModal({
     prevBranchRef.current = watchedBranch;
   }, [watchedBranch, isEditMode, setValue]);
 
+  // Pre-fill services and service sets from gift certificate
+  useEffect(() => {
+    if (isEditMode || !giftCertificate || !visible) return;
+
+    // Load services from gift certificate
+    if (
+      giftCertificate.services &&
+      giftCertificate.services.length > 0 &&
+      services
+    ) {
+      const mappedServices = giftCertificate.services
+        .map((gcService) => {
+          const service = services.find((s) => s.id === gcService.service_id);
+          if (!service || !service.is_active) return null;
+          return {
+            serviceId: gcService.service_id,
+            quantity: gcService.quantity,
+            service,
+          };
+        })
+        .filter((s): s is SelectedService => s !== null);
+
+      if (mappedServices.length > 0) {
+        setSelectedServices(mappedServices);
+        setValue(
+          "services",
+          mappedServices.map((s) => ({
+            serviceId: s.serviceId,
+            quantity: s.quantity,
+          })),
+          { shouldValidate: true }
+        );
+      }
+    }
+
+    // Load service sets from gift certificate
+    if (
+      giftCertificate.service_sets &&
+      giftCertificate.service_sets.length > 0 &&
+      serviceSets
+    ) {
+      const mappedServiceSets = giftCertificate.service_sets
+        .map((gcServiceSet) => {
+          const serviceSet = serviceSets.find(
+            (ss) => ss.id === gcServiceSet.service_set_id
+          );
+          if (!serviceSet || !serviceSet.is_active) return null;
+          return {
+            serviceSetId: gcServiceSet.service_set_id,
+            quantity: gcServiceSet.quantity,
+            serviceSet,
+          };
+        })
+        .filter((ss): ss is SelectedServiceSet => ss !== null);
+
+      if (mappedServiceSets.length > 0) {
+        setSelectedServiceSets(mappedServiceSets);
+        setValue(
+          "serviceSets",
+          mappedServiceSets.map((ss) => ({
+            serviceSetId: ss.serviceSetId,
+            quantity: ss.quantity,
+          })),
+          { shouldValidate: true }
+        );
+      }
+    }
+  }, [giftCertificate, services, serviceSets, visible, isEditMode, setValue]);
+
   const { mutate: createBooking, isPending: isCreating } = useMutation({
     mutationFn: createBookingAction,
     onSuccess: (data) => {
       if (!data.success) {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>{data.error}</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", data.error);
         return;
       }
 
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="success">
-            <ToastTitle>Success</ToastTitle>
-            <ToastDescription>Booking created successfully!</ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.success("Booking Created", "Booking created successfully!");
 
       queryClient.invalidateQueries({ queryKey: ["services-served-today"] });
       queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
@@ -339,6 +423,8 @@ export default function BookingFormModal({
         serviceSets: [],
         notes: "",
         voucherCode: "",
+        voucher: null,
+        grandDiscount: 0,
       });
       setSelectedServices([]);
       setSelectedServiceSets([]);
@@ -382,33 +468,16 @@ export default function BookingFormModal({
     onSuccess: (data) => {
       if (!data.success) {
         setIsCancelling(false);
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>{data.error}</ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", data.error);
         return;
       }
 
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="success">
-            <ToastTitle>Success</ToastTitle>
-            <ToastDescription>
-              {isCancelling
-                ? "Booking cancelled successfully!"
-                : "Booking updated successfully!"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.success(
+        "Success",
+        isCancelling
+          ? "Booking cancelled successfully!"
+          : "Booking updated successfully!"
+      );
 
       queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -472,18 +541,7 @@ export default function BookingFormModal({
     }
 
     if (selectedServices.length === 0 && selectedServiceSets.length === 0) {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              Please select at least one service or service set
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", "Please select at least one service or service set");
       return;
     }
 
@@ -491,18 +549,7 @@ export default function BookingFormModal({
       (!data.customerId || data.customerId === 0) &&
       (!data.customerName || data.customerName.trim().length === 0)
     ) {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              Please select a customer or enter a customer name
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", "Please select a customer or enter a customer name");
       return;
     }
 
@@ -678,6 +725,8 @@ export default function BookingFormModal({
             serviceSets: [],
             notes: "",
             voucherCode: "",
+            voucher: null,
+            grandDiscount: 0,
           });
           setSelectedServices([]);
           setSelectedServiceSets([]);
@@ -689,7 +738,20 @@ export default function BookingFormModal({
           <Pressable
             style={styles.backdrop}
             onPress={() => {
-              reset();
+              reset({
+                customerId: 0,
+                customerName: "",
+                appointmentDate: defaultDate || "",
+                appointmentTime: "",
+                branch: "NAILS" as const,
+                customerEmail: "",
+                services: [],
+                serviceSets: [],
+                notes: "",
+                voucherCode: "",
+                voucher: null,
+                grandDiscount: 0,
+              });
               setSelectedServices([]);
               setSelectedServiceSets([]);
               setSelectedCustomer(null);
@@ -948,6 +1010,7 @@ export default function BookingFormModal({
                       onUpdateServiceQuantity={updateQuantity}
                       onRemoveServiceSet={removeServiceSet}
                       onUpdateServiceSetQuantity={updateServiceSetQuantity}
+                      grandDiscount={watch("grandDiscount") || 0}
                     />
                   )}
                 </View>
@@ -962,12 +1025,7 @@ export default function BookingFormModal({
                 />
 
                 {!isEditMode && (
-                  <FormField<CreateBookingSchema>
-                    control={control as any}
-                    name="voucherCode"
-                    label="Voucher Code (Optional)"
-                    placeholder="Enter voucher code"
-                  />
+                  <VoucherInput control={control as any} setValue={setValue} />
                 )}
 
                 {isEditMode ? (

@@ -18,7 +18,7 @@ import {
 } from "react-native";
 
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 export default function EmployeePayslipPermissions() {
   const toast = useToast();
@@ -40,47 +40,18 @@ export default function EmployeePayslipPermissions() {
     onSuccess: (result, variables) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Permission Updated</ToastTitle>
-              <ToastDescription>
-                Employee can {variables.canRequest ? "now" : "no longer"}{" "}
-                request payslips.
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Permission Updated",
+          `Employee can ${
+            variables.canRequest ? "now" : "no longer"
+          } request payslips.`
+        );
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to update permission"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to update permission");
       }
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 

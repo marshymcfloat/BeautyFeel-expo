@@ -1,5 +1,6 @@
 import { COLORS } from "@/lib/utils/constants";
-import { scaleDimension, useResponsive } from "@/lib/utils/responsive";
+import { scaleDimension } from "@/lib/utils/responsive";
+import { useResponsive } from "@/lib/hooks/useResponsive";
 import { AlertCircle } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
 import { ResponsiveText } from "./ResponsiveText";

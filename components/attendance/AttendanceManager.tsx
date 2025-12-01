@@ -18,7 +18,7 @@ import { CheckCircle2, XCircle } from "lucide-react-native";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 
 interface EmployeeAttendanceItemProps {
   employee: {
@@ -150,48 +150,18 @@ export default function AttendanceManager() {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["employees-attendance"] });
 
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Attendance Updated</ToastTitle>
-              <ToastDescription>
-                {result.data?.salary_adjustment
-                  ? `Salary adjusted by ₱${result.data.salary_adjustment}`
-                  : "Attendance marked successfully"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Attendance Updated",
+          result.data?.salary_adjustment
+            ? `Salary adjusted by ₱${result.data.salary_adjustment}`
+            : "Attendance marked successfully"
+        );
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to update attendance"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to update attendance");
       }
     },
     onError: (error: Error) => {
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 

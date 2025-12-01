@@ -1,4 +1,10 @@
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useResponsive } from "@/lib/hooks/useResponsive";
+import {
+  scaleDimension,
+  scaleFont,
+  SCREEN_WIDTH,
+} from "@/lib/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -225,7 +231,14 @@ export default function Index() {
                 </LinearGradient>
               </View>
 
-              <Text style={styles.brandName}>BEAUTYFEEL</Text>
+              <Text 
+                style={styles.brandName} 
+                numberOfLines={1} 
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                BEAUTYFEEL
+              </Text>
 
               <LinearGradient
                 colors={["#ec4899", "#a855f7"]}
@@ -263,210 +276,216 @@ export default function Index() {
   );
 }
 
+const isSmall = SCREEN_WIDTH < 375;
+
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-  signInButton: {
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
-    borderRadius: 999,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  signInText: {
-    color: "#ec4899",
-    fontWeight: "600",
-  },
-  heroContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  decorativeCircle: {
-    position: "absolute",
-    borderRadius: 999,
-  },
-  decorativeCircle1: {
-    top: 80,
-    left: 32,
-    width: 80,
-    height: 80,
-    backgroundColor: "rgba(244, 114, 182, 0.2)",
-  },
-  decorativeCircle2: {
-    top: 160,
-    right: 48,
-    width: 56,
-    height: 56,
-    backgroundColor: "rgba(192, 132, 252, 0.3)",
-  },
-  decorativeCircle3: {
-    bottom: 128,
-    left: 64,
-    width: 96,
-    height: 96,
-    backgroundColor: "rgba(232, 121, 249, 0.25)",
-  },
-  logoSection: {
-    alignItems: "center",
-  },
-  logoIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 24,
-    marginBottom: 32,
-    overflow: "hidden",
-  },
-  logoIconInner: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  brandName: {
-    fontSize: 48,
-    fontWeight: "900",
-    letterSpacing: 8,
-    color: "#1f1f1f",
-    textTransform: "uppercase",
-  },
-  divider: {
-    height: 4,
-    width: 192,
-    borderRadius: 999,
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  tagline: {
-    fontSize: 18,
-    color: "#4b5563",
-    fontWeight: "500",
-    letterSpacing: 0.5,
-  },
-  bottomSection: {
-    paddingHorizontal: 32,
-    paddingBottom: 40,
-  },
-  getStartedButton: {
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  getStartedGradient: {
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  getStartedText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  bottomText: {
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: 14,
-    marginTop: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: 24,
-    width: "100%",
-    maxWidth: 448,
-    padding: 32,
-    zIndex: 10,
-  },
-  modalHeader: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 999,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  iconInner: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
-  },
-  modalSubtitle: {
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  loadingContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  loadingText: {
-    marginTop: 16,
-    color: "#6b7280",
-    fontSize: 16,
-  },
-  timeoutContainer: {
-    alignItems: "center",
-    marginTop: 24,
-    zIndex: 1,
-  },
-  timeoutText: {
-    marginTop: 12,
-    marginBottom: 16,
-    color: "#ef4444",
-    fontSize: 14,
-    textAlign: "center",
-  },
-  clearButton: {
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    minWidth: 200,
-    minHeight: 48,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  clearButtonPressed: {
-    backgroundColor: "#dc2626",
-    opacity: 0.8,
-  },
-  clearButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-});
+    safeArea: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      paddingHorizontal: scaleDimension(24),
+      paddingVertical: scaleDimension(16),
+    },
+    signInButton: {
+      backgroundColor: "rgba(255, 255, 255, 0.8)",
+      borderRadius: scaleDimension(999),
+      paddingHorizontal: scaleDimension(20),
+      paddingVertical: scaleDimension(10),
+    },
+    signInText: {
+      color: "#ec4899",
+      fontWeight: "600",
+      fontSize: scaleFont(14),
+    },
+    heroContent: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: scaleDimension(32),
+    },
+    decorativeCircle: {
+      position: "absolute",
+      borderRadius: scaleDimension(999),
+    },
+    decorativeCircle1: {
+      top: scaleDimension(80),
+      left: scaleDimension(32),
+      width: scaleDimension(80),
+      height: scaleDimension(80),
+      backgroundColor: "rgba(244, 114, 182, 0.2)",
+    },
+    decorativeCircle2: {
+      top: scaleDimension(160),
+      right: scaleDimension(48),
+      width: scaleDimension(56),
+      height: scaleDimension(56),
+      backgroundColor: "rgba(192, 132, 252, 0.3)",
+    },
+    decorativeCircle3: {
+      bottom: scaleDimension(128),
+      left: scaleDimension(64),
+      width: scaleDimension(96),
+      height: scaleDimension(96),
+      backgroundColor: "rgba(232, 121, 249, 0.25)",
+    },
+    logoSection: {
+      alignItems: "center",
+    },
+    logoIconContainer: {
+      width: scaleDimension(96),
+      height: scaleDimension(96),
+      borderRadius: scaleDimension(24),
+      marginBottom: scaleDimension(32),
+      overflow: "hidden",
+    },
+    logoIconInner: {
+      width: "100%",
+      height: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    brandName: {
+      fontSize: scaleFont(isSmall ? 28 : SCREEN_WIDTH < 390 ? 32 : 36),
+      fontWeight: "900",
+      letterSpacing: scaleDimension(SCREEN_WIDTH < 390 ? 3 : 5),
+      color: "#1f1f1f",
+      textTransform: "uppercase",
+      textAlign: "center",
+      includeFontPadding: false,
+    },
+    divider: {
+      height: scaleDimension(4),
+      width: scaleDimension(192),
+      borderRadius: scaleDimension(999),
+      marginTop: scaleDimension(16),
+      marginBottom: scaleDimension(16),
+    },
+    tagline: {
+      fontSize: scaleFont(16),
+      color: "#4b5563",
+      fontWeight: "500",
+      letterSpacing: scaleDimension(0.5),
+    },
+    bottomSection: {
+      paddingHorizontal: scaleDimension(32),
+      paddingBottom: scaleDimension(40),
+    },
+    getStartedButton: {
+      borderRadius: scaleDimension(16),
+      overflow: "hidden",
+    },
+    getStartedGradient: {
+      paddingVertical: scaleDimension(16),
+      alignItems: "center",
+    },
+    getStartedText: {
+      color: "white",
+      fontSize: scaleFont(16),
+      fontWeight: "bold",
+    },
+    bottomText: {
+      textAlign: "center",
+      color: "#6b7280",
+      fontSize: scaleFont(12),
+      marginTop: scaleDimension(16),
+    },
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: scaleDimension(24),
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+    },
+    modalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+    },
+    modalContent: {
+      backgroundColor: "white",
+      borderRadius: scaleDimension(24),
+      width: "100%",
+      maxWidth: scaleDimension(448),
+      padding: scaleDimension(32),
+      zIndex: 10,
+    },
+    modalHeader: {
+      alignItems: "center",
+      marginBottom: scaleDimension(24),
+    },
+    iconContainer: {
+      width: scaleDimension(64),
+      height: scaleDimension(64),
+      borderRadius: scaleDimension(999),
+      marginBottom: scaleDimension(16),
+      overflow: "hidden",
+    },
+    iconInner: {
+      width: "100%",
+      height: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalTitle: {
+      fontSize: scaleFont(24),
+      fontWeight: "bold",
+      color: "#111827",
+    },
+    modalSubtitle: {
+      color: "#6b7280",
+      marginTop: scaleDimension(4),
+      fontSize: scaleFont(14),
+    },
+    loadingContainer: {
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    loadingContent: {
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1,
+    },
+    loadingText: {
+      marginTop: scaleDimension(16),
+      color: "#6b7280",
+      fontSize: scaleFont(16),
+    },
+    timeoutContainer: {
+      alignItems: "center",
+      marginTop: scaleDimension(24),
+      zIndex: 1,
+    },
+    timeoutText: {
+      marginTop: scaleDimension(12),
+      marginBottom: scaleDimension(16),
+      color: "#ef4444",
+      fontSize: scaleFont(14),
+      textAlign: "center",
+    },
+    clearButton: {
+      backgroundColor: "#ef4444",
+      paddingHorizontal: scaleDimension(24),
+      paddingVertical: scaleDimension(14),
+      borderRadius: scaleDimension(12),
+      minWidth: scaleDimension(200),
+      minHeight: scaleDimension(48),
+      justifyContent: "center",
+      alignItems: "center",
+      elevation: 2,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: scaleDimension(2) },
+      shadowOpacity: 0.25,
+      shadowRadius: scaleDimension(3.84),
+    },
+    clearButtonPressed: {
+      backgroundColor: "#dc2626",
+      opacity: 0.8,
+    },
+    clearButtonText: {
+      color: "white",
+      fontSize: scaleFont(16),
+      fontWeight: "600",
+      textAlign: "center",
+    },
+  });

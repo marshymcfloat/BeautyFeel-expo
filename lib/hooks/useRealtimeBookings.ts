@@ -22,14 +22,15 @@ export function useRealtimeBookings(date: string) {
   const [bookings, setBookings] = useState<BookingWithServices[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-  useEffect(() => {
-    async function fetchBookings() {
-      try {
-        const { data, error: fetchError } = await supabase
-          .from("booking")
-          .select(
-            `
+  async function fetchBookings() {
+    try {
+      setLoading(true);
+      const { data, error: fetchError } = await supabase
+        .from("booking")
+        .select(
+          `
             *,
             customer:customer_id (*),
             service_bookings:service_bookings!service_bookings_booking_transaction_id_fkey (
@@ -37,24 +38,25 @@ export function useRealtimeBookings(date: string) {
               service:service_id (*)
             )
           `,
-          )
-          .eq("appointment_date", date)
-          .order("appointment_time", { ascending: true });
+        )
+        .eq("appointment_date", date)
+        .order("appointment_time", { ascending: true });
 
-        if (fetchError) throw fetchError;
+      if (fetchError) throw fetchError;
 
-        setBookings((data || []) as BookingWithServices[]);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching bookings:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to fetch bookings",
-        );
-      } finally {
-        setLoading(false);
-      }
+      setBookings((data || []) as BookingWithServices[]);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching bookings:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch bookings",
+      );
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     fetchBookings();
 
     // Subscribe to booking changes
@@ -187,9 +189,13 @@ export function useRealtimeBookings(date: string) {
     return () => {
       bookingChannel.unsubscribe();
     };
-  }, [date]);
+  }, [date, refetchTrigger]);
 
-  return { bookings, loading, error, refetch: () => setLoading(true) };
+  const refetch = () => {
+    setRefetchTrigger((prev) => prev + 1);
+  };
+
+  return { bookings, loading, error, refetch };
 }
 
 /**

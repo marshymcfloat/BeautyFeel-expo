@@ -27,7 +27,7 @@ import {
   View,
 } from "react-native";
 import { queryClient } from "../Providers/TanstackProvider";
-import { Toast, ToastDescription, ToastTitle, useToast } from "../ui/toast";
+import { useToast } from "../ui/toast";
 import { formatCurrency } from "@/lib/utils/currency";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -59,50 +59,19 @@ export default function PayslipRequestsManager() {
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
         queryClient.invalidateQueries({ queryKey: ["unpaid-payslip-amount"] });
 
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Payslip Approved</ToastTitle>
-              <ToastDescription>
-                Payslip approved. Employee salary reset to ₱0.00 and payslip
-                requests disabled.
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success(
+          "Payslip Approved",
+          "Payslip approved. Employee salary reset to ₱0.00 and payslip requests disabled."
+        );
         setShowActionModal(false);
         setSelectedRequest(null);
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to approve payslip request"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to approve payslip request");
       }
     },
     onError: (error: Error) => {
       console.error("Approve mutation error:", error);
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 
@@ -115,50 +84,17 @@ export default function PayslipRequestsManager() {
         queryClient.invalidateQueries({ queryKey: ["payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["my-payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Payslip Rejected</ToastTitle>
-              <ToastDescription>
-                Payslip request has been rejected.
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.success("Payslip Rejected", "Payslip request has been rejected.");
         setShowActionModal(false);
         setSelectedRequest(null);
         setRejectionReason("");
       } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                {result.error || "Failed to reject payslip request"}
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", result.error || "Failed to reject payslip request");
       }
     },
     onError: (error: Error) => {
       console.error("Reject mutation error:", error);
-      toast.show({
-        placement: "top",
-        duration: 3000,
-        render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-            <ToastTitle>Error</ToastTitle>
-            <ToastDescription>
-              {error.message || "An unexpected error occurred"}
-            </ToastDescription>
-          </Toast>
-        ),
-      });
+      toast.error("Error", error.message || "An unexpected error occurred");
     },
   });
 
@@ -198,18 +134,7 @@ export default function PayslipRequestsManager() {
       });
     } else if (actionType === "reject") {
       if (!rejectionReason.trim()) {
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>
-                Please provide a rejection reason
-              </ToastDescription>
-            </Toast>
-          ),
-        });
+        toast.error("Error", "Please provide a rejection reason");
         return;
       }
       console.log("Calling reject mutation...");
