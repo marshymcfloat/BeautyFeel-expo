@@ -16,7 +16,7 @@ import {
   User,
 } from "lucide-react-native";
 import React, { useMemo } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { BookingCardProps } from "./types";
 
 export function BookingCard({
@@ -279,7 +279,12 @@ export function BookingCard({
               >
                 Service Status
               </ResponsiveText>
-              <View style={styles.servicesGrid}>
+              <ScrollView
+                style={styles.servicesGridContainer}
+                contentContainerStyle={styles.servicesGrid}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
                 {Object.entries(servicesByType).map(
                   ([serviceName, instances]) => (
                     <View key={serviceName} style={styles.serviceGroup}>
@@ -290,7 +295,13 @@ export function BookingCard({
                       >
                         {serviceName}
                       </ResponsiveText>
-                      <View style={styles.serviceInstances}>
+                      <ScrollView
+                        horizontal
+                        style={styles.serviceInstancesContainer}
+                        contentContainerStyle={styles.serviceInstances}
+                        showsHorizontalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                      >
                         {instances.map((instance: any) => {
                           const isUnclaimed =
                             instance.status === SERVICE_STATUS.UNCLAIMED;
@@ -366,11 +377,11 @@ export function BookingCard({
                             </Pressable>
                           );
                         })}
-                      </View>
+                      </ScrollView>
                     </View>
                   )
                 )}
-              </View>
+              </ScrollView>
             </View>
           )}
 
@@ -586,8 +597,12 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  servicesGridContainer: {
+    maxHeight: scaleDimension(200),
+  },
   servicesGrid: {
     gap: scaleDimension(12),
+    paddingBottom: scaleDimension(8),
   },
   serviceGroup: {
     marginBottom: scaleDimension(8),
@@ -597,10 +612,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: scaleDimension(8),
   },
+  serviceInstancesContainer: {
+    marginVertical: scaleDimension(4),
+  },
   serviceInstances: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: scaleDimension(8),
+    paddingRight: scaleDimension(8),
   },
   instanceBadge: {
     paddingHorizontal: scaleDimension(12),

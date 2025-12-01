@@ -1,83 +1,48 @@
-import { supabase } from "@/lib/utils/supabase";
-import { useAuth } from "@/lib/hooks/useAuth";
+import { queryClient } from "@/components/Providers/TanstackProvider";
+import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import {
-  getProfileStats,
-  changePasswordAction,
+  Toast,
+  ToastDescription,
+  ToastTitle,
+  useToast,
+} from "@/components/ui/toast";
+import {
+  getEarningsStats,
+  getMyPayslipReleases,
+  updateEmployeeName,
+  updatePassword,
 } from "@/lib/actions/profileActions";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils/currency";
+import { formatFullDate } from "@/lib/utils/dateTime";
+import { scaleDimension } from "@/lib/utils/responsive";
+import { getRoleDisplayName } from "@/lib/utils/role";
+import { supabase } from "@/lib/utils/supabase";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { LogOut, Lock, ChevronRight } from "lucide-react-native";
+import {
+  Calendar,
+  ChevronRight,
+  FileText,
+  Lock,
+  LogOut,
+  PhilippinePeso,
+  User,
+} from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
-  Text,
-  View,
   StyleSheet,
-  ActivityIndicator,
-  Platform,
-  Modal,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { FormField } from "@/components/form/FormField";
-import { Toast, ToastDescription, ToastTitle, useToast } from "@/components/ui/toast";
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string().min(1, "Please confirm your password"),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
-
-type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
-
-interface MenuItemProps {
-  icon: React.ReactNode;
-  title: string;
-  onPress?: () => void;
-  danger?: boolean;
-}
-
-function MenuItem({
-  icon,
-  title,
-  onPress,
-  danger = false,
-}: MenuItemProps) {
-  return (
-    <Pressable
-      style={styles.menuItem}
-      onPress={onPress}
-    >
-      <View
-        style={[
-          styles.menuIconContainer,
-          danger ? styles.menuIconDanger : styles.menuIconDefault,
-        ]}
-      >
-        {icon}
-      </View>
-      <View style={styles.menuContent}>
-        <Text
-          style={[
-            styles.menuTitle,
-            danger ? styles.menuTitleDanger : styles.menuTitleDefault,
-          ]}
-        >
-          {title}
-        </Text>
-      </View>
-      {!danger && <ChevronRight size={20} color="#9CA3AF" />}
-    </Pressable>
-  );
-}
 
 function getInitials(name: string | null | undefined): string {
   if (!name) return "U";
@@ -88,133 +53,196 @@ function getInitials(name: string | null | undefined): string {
   return name.substring(0, 2).toUpperCase();
 }
 
-function ChangePasswordModal({
-  visible,
-  onClose,
-}: {
+interface ChangePasswordModalProps {
   visible: boolean;
   onClose: () => void;
-}) {
+}
+
+function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const toast = useToast();
-  const form = useForm<ChangePasswordFormData>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  });
 
-  const { control, handleSubmit, reset } = form;
-
-  const changePasswordMutation = useMutation({
-    mutationFn: ({
-      currentPassword,
-      newPassword,
-    }: {
-      currentPassword: string;
-      newPassword: string;
-    }) => changePasswordAction(currentPassword, newPassword),
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.show({
-          placement: "top",
-          duration: 2000,
-          render: ({ id }) => (
-            <Toast action="success" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Password Changed</ToastTitle>
-              <ToastDescription>Your password has been updated successfully.</ToastDescription>
-            </Toast>
-          ),
-        });
-        reset();
-        onClose();
-      } else {
-        toast.show({
-          placement: "top",
-          duration: 3000,
-          render: ({ id }) => (
-            <Toast action="error" variant="outline" nativeID={"toast-" + id}>
-              <ToastTitle>Error</ToastTitle>
-              <ToastDescription>{result.error || "Failed to change password"}</ToastDescription>
-            </Toast>
-          ),
-        });
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (password: string) => {
+      // First verify current password by attempting to sign in
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user?.email) {
+        throw new Error("User not found");
       }
+
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        throw new Error("Current password is incorrect");
+      }
+
+      // Update password
+      return updatePassword(password);
+    },
+    onSuccess: () => {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="success">
+            <ToastTitle>Success</ToastTitle>
+            <ToastDescription>Password updated successfully</ToastDescription>
+          </Toast>
+        ),
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      onClose();
     },
     onError: (error: Error) => {
       toast.show({
         placement: "top",
         duration: 3000,
         render: ({ id }) => (
-          <Toast action="error" variant="outline" nativeID={"toast-" + id}>
+          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
             <ToastTitle>Error</ToastTitle>
-            <ToastDescription>{error.message || "An unexpected error occurred"}</ToastDescription>
+            <ToastDescription>
+              {error.message || "Failed to update password"}
+            </ToastDescription>
           </Toast>
         ),
       });
     },
   });
 
-  const onSubmit = (data: ChangePasswordFormData) => {
-    changePasswordMutation.mutate({
-      currentPassword: data.currentPassword,
-      newPassword: data.newPassword,
-    });
+  const handleSubmit = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
+            <ToastTitle>Error</ToastTitle>
+            <ToastDescription>Please fill in all fields</ToastDescription>
+          </Toast>
+        ),
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
+            <ToastTitle>Error</ToastTitle>
+            <ToastDescription>
+              Password must be at least 6 characters
+            </ToastDescription>
+          </Toast>
+        ),
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
+            <ToastTitle>Error</ToastTitle>
+            <ToastDescription>Passwords do not match</ToastDescription>
+          </Toast>
+        ),
+      });
+      return;
+    }
+
+    updatePasswordMutation.mutate(newPassword);
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalContainer}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Change Password</Text>
-
-          <FormField
-            control={control}
-            name="currentPassword"
-            label="Current Password"
-            placeholder="Enter current password"
-            secureTextEntry
-          />
-
-          <FormField
-            control={control}
-            name="newPassword"
-            label="New Password"
-            placeholder="Enter new password"
-            secureTextEntry
-          />
-
-          <FormField
-            control={control}
-            name="confirmPassword"
-            label="Confirm Password"
-            placeholder="Confirm new password"
-            secureTextEntry
-          />
-
-          <View style={styles.modalButtons}>
-            <Pressable
-              style={[styles.modalButton, styles.modalButtonCancel]}
-              onPress={onClose}
-            >
-              <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+          <View style={styles.modalHeader}>
+            <ResponsiveText variant="xl" style={styles.modalTitle}>
+              Change Password
+            </ResponsiveText>
+            <Pressable onPress={onClose}>
+              <Text style={styles.modalClose}>✕</Text>
             </Pressable>
+          </View>
+
+          <View style={styles.modalBody}>
+            <View style={styles.inputGroup}>
+              <ResponsiveText variant="sm" style={styles.inputLabel}>
+                Current Password
+              </ResponsiveText>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ResponsiveText variant="sm" style={styles.inputLabel}>
+                New Password
+              </ResponsiveText>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter new password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ResponsiveText variant="sm" style={styles.inputLabel}>
+                Confirm New Password
+              </ResponsiveText>
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
             <Pressable
-              style={[styles.modalButton, styles.modalButtonSubmit]}
-              onPress={handleSubmit(onSubmit)}
-              disabled={changePasswordMutation.isPending}
+              style={styles.modalButton}
+              onPress={handleSubmit}
+              disabled={updatePasswordMutation.isPending}
             >
-              {changePasswordMutation.isPending ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={styles.modalButtonTextSubmit}>Change Password</Text>
-              )}
+              <LinearGradient
+                colors={["#ec4899", "#d946ef"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.modalButtonGradient}
+              >
+                {updatePasswordMutation.isPending ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <ResponsiveText variant="md" style={styles.modalButtonText}>
+                    Update Password
+                  </ResponsiveText>
+                )}
+              </LinearGradient>
             </Pressable>
           </View>
         </View>
@@ -223,19 +251,155 @@ function ChangePasswordModal({
   );
 }
 
+interface ChangeNameModalProps {
+  visible: boolean;
+  onClose: () => void;
+  currentName: string | null;
+}
+
+function ChangeNameModal({
+  visible,
+  onClose,
+  currentName,
+}: ChangeNameModalProps) {
+  const [name, setName] = useState(currentName || "");
+  const toast = useToast();
+  const { employee } = useAuth();
+
+  const updateNameMutation = useMutation({
+    mutationFn: (newName: string) => {
+      if (!employee?.id) throw new Error("Employee not found");
+      return updateEmployeeName(employee.id, newName);
+    },
+    onSuccess: () => {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="success">
+            <ToastTitle>Success</ToastTitle>
+            <ToastDescription>Name updated successfully</ToastDescription>
+          </Toast>
+        ),
+      });
+      onClose();
+      // Invalidate queries to refresh employee data
+      queryClient.invalidateQueries({ queryKey: ["employee"] });
+    },
+    onError: (error: Error) => {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
+            <ToastTitle>Error</ToastTitle>
+            <ToastDescription>
+              {error.message || "Failed to update name"}
+            </ToastDescription>
+          </Toast>
+        ),
+      });
+    },
+  });
+
+  React.useEffect(() => {
+    if (visible) {
+      setName(currentName || "");
+    }
+  }, [visible, currentName]);
+
+  const handleSubmit = () => {
+    if (!name.trim()) {
+      toast.show({
+        placement: "top",
+        duration: 3000,
+        render: ({ id }) => (
+          <Toast variant="outline" nativeID={`toast-${id}`} action="error">
+            <ToastTitle>Error</ToastTitle>
+            <ToastDescription>Name cannot be empty</ToastDescription>
+          </Toast>
+        ),
+      });
+      return;
+    }
+
+    updateNameMutation.mutate(name.trim());
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalContainer}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <ResponsiveText variant="xl" style={styles.modalTitle}>
+              Change Name
+            </ResponsiveText>
+            <Pressable onPress={onClose}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.modalBody}>
+            <View style={styles.inputGroup}>
+              <ResponsiveText variant="sm" style={styles.inputLabel}>
+                Name
+              </ResponsiveText>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your name"
+                value={name}
+                onChangeText={setName}
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="words"
+              />
+            </View>
+
+            <Pressable
+              style={styles.modalButton}
+              onPress={handleSubmit}
+              disabled={updateNameMutation.isPending}
+            >
+              <LinearGradient
+                colors={["#ec4899", "#d946ef"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.modalButtonGradient}
+              >
+                {updateNameMutation.isPending ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <ResponsiveText variant="md" style={styles.modalButtonText}>
+                    Update Name
+                  </ResponsiveText>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, employee, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showChangeName, setShowChangeName] = useState(false);
 
-  // Fetch profile stats
-  const {
-    data: profileStats,
-    isLoading: statsLoading,
-  } = useQuery({
-    queryKey: ["profileStats", employee?.id],
-    queryFn: () => getProfileStats(employee!.id),
+  // Fetch earnings stats
+  const { data: earningsData, isLoading: earningsLoading } = useQuery({
+    queryKey: ["earningsStats", employee?.id],
+    queryFn: () => getEarningsStats(employee!.id),
+    enabled: !!employee?.id,
+  });
+
+  // Fetch payslip releases
+  const { data: payslipData, isLoading: payslipLoading } = useQuery({
+    queryKey: ["payslipReleases", employee?.id],
+    queryFn: () => getMyPayslipReleases(employee!.id),
     enabled: !!employee?.id,
   });
 
@@ -253,13 +417,19 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const isLoading = authLoading || statsLoading;
+  const isLoading = authLoading || earningsLoading || payslipLoading;
   const displayName = employee?.name || user?.email?.split("@")[0] || "User";
+  const displayEmail = user?.email || "No email";
   const initials = useMemo(
     () => getInitials(employee?.name || user?.email),
     [employee?.name, user?.email]
   );
-  const stats = profileStats?.data;
+  const roleDisplay = useMemo(
+    () => getRoleDisplayName(employee?.role),
+    [employee?.role]
+  );
+  const earnings = earningsData?.data;
+  const payslipReleases = payslipData?.data || [];
 
   if (authLoading) {
     return (
@@ -301,78 +471,196 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.profileInfo}>
                   <Text style={styles.profileName}>{displayName}</Text>
-                </View>
-              </View>
-
-              {/* Stats */}
-              <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {isLoading ? "..." : stats?.totalServices || 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Total Services</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {isLoading
-                      ? "..."
-                      : formatCurrency(stats?.totalEarned || 0)}
-                  </Text>
-                  <Text style={styles.statLabel}>Total Earned</Text>
+                  <Text style={styles.profileEmail}>{displayEmail}</Text>
+                  <View style={styles.badgeContainer}>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{roleDisplay}</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </LinearGradient>
           </View>
 
-          {/* Service Breakdown */}
-          {stats && stats.serviceBreakdown && stats.serviceBreakdown.length > 0 && (
-            <View style={styles.menuSection}>
-              <Text style={styles.menuSectionTitle}>SERVICE BREAKDOWN</Text>
-              <View style={styles.menuGroup}>
-                {stats.serviceBreakdown.map((service, index) => (
-                  <React.Fragment key={service.serviceId}>
-                    {index > 0 && <View style={styles.menuDivider} />}
-                    <View style={styles.serviceItem}>
-                      <View style={styles.serviceInfo}>
-                        <Text style={styles.serviceName}>{service.serviceName}</Text>
-                        <Text style={styles.serviceCount}>
-                          {service.count} {service.count === 1 ? "service" : "services"}
-                        </Text>
-                      </View>
-                      <Text style={styles.serviceEarned}>
-                        {formatCurrency(service.totalEarned)}
-                      </Text>
-                    </View>
-                  </React.Fragment>
-                ))}
+          {/* Earnings Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <PhilippinePeso size={20} color="#ec4899" />
+              <ResponsiveText variant="lg" style={styles.sectionTitle}>
+                Total Earned
+              </ResponsiveText>
+            </View>
+            <View style={styles.earningsGrid}>
+              <View style={styles.earningsCard}>
+                <ResponsiveText variant="sm" style={styles.earningsLabel}>
+                  Today
+                </ResponsiveText>
+                <ResponsiveText variant="xl" style={styles.earningsValue}>
+                  {isLoading ? "..." : formatCurrency(earnings?.today || 0)}
+                </ResponsiveText>
+              </View>
+              <View style={styles.earningsCard}>
+                <ResponsiveText variant="sm" style={styles.earningsLabel}>
+                  This Week
+                </ResponsiveText>
+                <ResponsiveText variant="xl" style={styles.earningsValue}>
+                  {isLoading ? "..." : formatCurrency(earnings?.thisWeek || 0)}
+                </ResponsiveText>
+              </View>
+              <View style={styles.earningsCard}>
+                <ResponsiveText variant="sm" style={styles.earningsLabel}>
+                  This Month
+                </ResponsiveText>
+                <ResponsiveText variant="xl" style={styles.earningsValue}>
+                  {isLoading ? "..." : formatCurrency(earnings?.thisMonth || 0)}
+                </ResponsiveText>
+              </View>
+              <View style={styles.earningsCard}>
+                <ResponsiveText variant="sm" style={styles.earningsLabel}>
+                  This Year
+                </ResponsiveText>
+                <ResponsiveText variant="xl" style={styles.earningsValue}>
+                  {isLoading ? "..." : formatCurrency(earnings?.thisYear || 0)}
+                </ResponsiveText>
+              </View>
+              <View style={[styles.earningsCard, styles.earningsCardAllTime]}>
+                <ResponsiveText variant="sm" style={styles.earningsLabel}>
+                  All Time
+                </ResponsiveText>
+                <ResponsiveText variant="xl" style={styles.earningsValue}>
+                  {isLoading ? "..." : formatCurrency(earnings?.allTime || 0)}
+                </ResponsiveText>
               </View>
             </View>
-          )}
+          </View>
 
-          {/* Menu Sections */}
-          <View style={styles.menuSection}>
+          {/* Account Settings */}
+          <View style={styles.section}>
+            <ResponsiveText variant="sm" style={styles.sectionTitle}>
+              ACCOUNT SETTINGS
+            </ResponsiveText>
             <View style={styles.menuGroup}>
-              <MenuItem
-                icon={<Lock size={20} color="#ec4899" />}
-                title="Change Password"
-                onPress={() => setShowChangePassword(true)}
-              />
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => setShowChangeName(true)}
+              >
+                <View style={styles.menuIconContainer}>
+                  <User size={20} color="#ec4899" />
+                </View>
+                <View style={styles.menuContent}>
+                  <Text style={styles.menuTitle}>Change Name</Text>
+                  <Text style={styles.menuSubtitle}>
+                    Update your display name
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </Pressable>
               <View style={styles.menuDivider} />
-              <MenuItem
-                icon={<LogOut size={20} color="#ef4444" />}
-                title="Sign Out"
-                onPress={handleLogout}
-                danger
-              />
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => setShowChangePassword(true)}
+              >
+                <View style={styles.menuIconContainer}>
+                  <Lock size={20} color="#ec4899" />
+                </View>
+                <View style={styles.menuContent}>
+                  <Text style={styles.menuTitle}>Change Password</Text>
+                  <Text style={styles.menuSubtitle}>Update your password</Text>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </Pressable>
             </View>
           </View>
+
+          {/* Payslip History */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <FileText size={20} color="#ec4899" />
+              <ResponsiveText variant="lg" style={styles.sectionTitle}>
+                Payslip History
+              </ResponsiveText>
+            </View>
+            {payslipLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#ec4899" />
+              </View>
+            ) : payslipReleases.length === 0 ? (
+              <View style={styles.emptyState}>
+                <FileText size={48} color="#d1d5db" />
+                <ResponsiveText variant="md" style={styles.emptyText}>
+                  No payslip releases yet
+                </ResponsiveText>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.payslipListContainer}
+                contentContainerStyle={styles.payslipList}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {payslipReleases.map((release) => (
+                  <View key={release.id} style={styles.payslipCard}>
+                    <View style={styles.payslipHeader}>
+                      <View>
+                        <ResponsiveText
+                          variant="md"
+                          style={styles.payslipAmount}
+                        >
+                          {formatCurrency(release.total_amount)}
+                        </ResponsiveText>
+                        <ResponsiveText variant="sm" style={styles.payslipDate}>
+                          {formatFullDate(release.released_at)}
+                        </ResponsiveText>
+                      </View>
+                      <Calendar size={20} color="#6b7280" />
+                    </View>
+                    {release.period_start_date && release.period_end_date && (
+                      <ResponsiveText variant="xs" style={styles.payslipPeriod}>
+                        Period: {formatFullDate(release.period_start_date)} -{" "}
+                        {formatFullDate(release.period_end_date)}
+                      </ResponsiveText>
+                    )}
+                    {release.notes && (
+                      <ResponsiveText variant="xs" style={styles.payslipNotes}>
+                        {release.notes}
+                      </ResponsiveText>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
+          {/* Sign Out */}
+          <View style={styles.section}>
+            <View style={styles.menuGroup}>
+              <Pressable style={styles.menuItem} onPress={handleLogout}>
+                <View style={[styles.menuIconContainer, styles.menuIconDanger]}>
+                  <LogOut size={20} color="#ef4444" />
+                </View>
+                <View style={styles.menuContent}>
+                  <Text style={[styles.menuTitle, styles.menuTitleDanger]}>
+                    Sign Out
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Version */}
+          <Text style={styles.versionText}>Beautyfeel v1.0.0</Text>
         </ScrollView>
       </LinearGradient>
 
+      {/* Modals */}
       <ChangePasswordModal
         visible={showChangePassword}
         onClose={() => setShowChangePassword(false)}
+      />
+      <ChangeNameModal
+        visible={showChangeName}
+        onClose={() => setShowChangeName(false)}
+        currentName={employee?.name || null}
       />
     </View>
   );
@@ -450,46 +738,84 @@ const styles = StyleSheet.create({
   profileInfo: {
     marginLeft: 16,
     flex: 1,
-    justifyContent: "center",
   },
   profileName: {
     fontSize: 24,
     fontWeight: "bold",
     color: "white",
   },
-  statsContainer: {
+  profileEmail: {
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 4,
+  },
+  badgeContainer: {
     flexDirection: "row",
-    marginTop: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.2)",
-  },
-  statItem: {
-    flex: 1,
     alignItems: "center",
+    marginTop: 8,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "white",
-  },
-  statLabel: {
-    color: "rgba(255, 255, 255, 0.7)",
-    fontSize: 14,
-  },
-  statDivider: {
-    width: 1,
+  badge: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  menuSection: {
+  badgeText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  section: {
     paddingHorizontal: 24,
     marginBottom: 24,
   },
-  menuSectionTitle: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    color: "#111827",
+    fontWeight: "700",
+    fontSize: 18,
+  },
+  earningsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  earningsCard: {
+    flex: 1,
+    minWidth: "45%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  earningsCardAllTime: {
+    minWidth: "100%",
+    backgroundColor: "#fdf2f8",
+    borderWidth: 2,
+    borderColor: "#ec4899",
+  },
+  earningsLabel: {
     color: "#6b7280",
-    fontWeight: "500",
     marginBottom: 8,
-    marginLeft: 4,
+    fontWeight: "500",
+  },
+  earningsValue: {
+    color: "#111827",
+    fontWeight: "700",
   },
   menuGroup: {
     backgroundColor: "white",
@@ -519,8 +845,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-  },
-  menuIconDefault: {
     backgroundColor: "#fdf2f8",
   },
   menuIconDanger: {
@@ -532,8 +856,6 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontWeight: "500",
-  },
-  menuTitleDefault: {
     color: "#111827",
   },
   menuTitleDanger: {
@@ -549,74 +871,144 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3f4f6",
     marginHorizontal: 16,
   },
-  serviceItem: {
+  payslipListContainer: {
+    maxHeight: scaleDimension(400),
+  },
+  payslipList: {
+    gap: 12,
+    paddingBottom: 8,
+  },
+  payslipCard: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  payslipHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    alignItems: "flex-start",
+    marginBottom: 8,
   },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceName: {
-    fontSize: 16,
-    fontWeight: "600",
+  payslipAmount: {
+    fontWeight: "700",
     color: "#111827",
     marginBottom: 4,
   },
-  serviceCount: {
-    fontSize: 14,
+  payslipDate: {
     color: "#6b7280",
   },
-  serviceEarned: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#ec4899",
+  payslipPeriod: {
+    color: "#6b7280",
+    marginTop: 4,
   },
-  modalOverlay: {
+  payslipNotes: {
+    color: "#9ca3af",
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+  emptyState: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  emptyText: {
+    color: "#6b7280",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  versionText: {
+    textAlign: "center",
+    color: "#9ca3af",
+    fontSize: 14,
+    marginBottom: 24,
+  },
+  modalContainer: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modalContent: {
     backgroundColor: "white",
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
-    width: "100%",
+    width: "90%",
     maxWidth: 400,
   },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 24,
   },
-  modalButtons: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 24,
+  modalTitle: {
+    fontWeight: "700",
+    color: "#111827",
+  },
+  modalClose: {
+    fontSize: 24,
+    color: "#6b7280",
+  },
+  modalBody: {
+    gap: 16,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontWeight: "600",
+    color: "#374151",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#111827",
+    backgroundColor: "#f9fafb",
   },
   modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  modalButtonGradient: {
+    paddingVertical: 16,
     alignItems: "center",
-    justifyContent: "center",
   },
-  modalButtonCancel: {
-    backgroundColor: "#f3f4f6",
-  },
-  modalButtonSubmit: {
-    backgroundColor: "#ec4899",
-  },
-  modalButtonTextCancel: {
-    color: "#111827",
-    fontWeight: "600",
-  },
-  modalButtonTextSubmit: {
+  modalButtonText: {
     color: "white",
     fontWeight: "600",
   },

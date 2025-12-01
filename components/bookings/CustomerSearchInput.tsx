@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -44,7 +45,8 @@ export default function CustomerSearchInput({
     enabled: searchTerm.length > 0 && !selectedCustomer,
   });
 
-  const customers = searchResults?.data || [];
+  const customers: Customer[] =
+    searchResults?.success && searchResults.data ? searchResults.data : [];
 
   // Reset when value changes externally
   useEffect(() => {
@@ -85,7 +87,6 @@ export default function CustomerSearchInput({
       onClear?.();
     }
     setShowResults(text.length > 0);
-    // Notify parent of name change (for new customers)
     onNameChange?.(text);
   };
 
@@ -130,8 +131,13 @@ export default function CustomerSearchInput({
       </View>
 
       {showResults && customers.length > 0 && (
-        <View style={styles.resultsContainer}>
-          {customers.slice(0, 5).map((item) => (
+        <ScrollView
+          style={styles.resultsContainer}
+          contentContainerStyle={styles.resultsContent}
+          showsVerticalScrollIndicator={true}
+          nestedScrollEnabled={true}
+        >
+          {customers.map((item) => (
             <Pressable
               key={item.id}
               onPress={() => handleSelectCustomer(item)}
@@ -148,12 +154,7 @@ export default function CustomerSearchInput({
               </View>
             </Pressable>
           ))}
-          {customers.length > 5 && (
-            <Text style={styles.moreResultsText}>
-              {customers.length - 5} more results... Type to refine search
-            </Text>
-          )}
-        </View>
+        </ScrollView>
       )}
 
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -234,16 +235,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    overflow: "hidden",
+    maxHeight: 200,
   },
-  moreResultsText: {
-    padding: 12,
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: 12,
-    fontStyle: "italic",
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
+  resultsContent: {
+    paddingBottom: 8,
   },
   resultItem: {
     paddingHorizontal: 16,

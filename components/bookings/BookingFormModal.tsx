@@ -206,6 +206,7 @@ export default function BookingFormModal({
     setValue("customerEmail", "");
   };
 
+  // Reset form when modal opens/closes or when existingBooking changes
   useEffect(() => {
     if (visible && existingBooking) {
       const initialValues = getInitialValues();
@@ -213,21 +214,6 @@ export default function BookingFormModal({
 
       if (existingBooking.customer) {
         setSelectedCustomer(existingBooking.customer);
-      }
-
-      if (existingBooking.service_bookings && services) {
-        const mapped = existingBooking.service_bookings
-          .map((sb) => {
-            const service = services.find((s) => s.id === sb.service_id);
-            if (!service) return null;
-            return {
-              serviceId: sb.service_id,
-              quantity: 1,
-              service,
-            };
-          })
-          .filter((s): s is SelectedService => s !== null);
-        setSelectedServices(mapped);
       }
     } else if (visible && !existingBooking) {
       reset({
@@ -246,7 +232,27 @@ export default function BookingFormModal({
       setSelectedServiceSets([]);
       setSelectedCustomer(null);
     }
-  }, [visible, existingBooking, services, defaultDate, reset]);
+  }, [visible, existingBooking, defaultDate, reset]);
+
+  // Map services for edit mode when services data is available
+  useEffect(() => {
+    if (isEditMode && existingBooking && services) {
+      if (existingBooking.service_bookings) {
+        const mapped = existingBooking.service_bookings
+          .map((sb) => {
+            const service = services.find((s) => s.id === sb.service_id);
+            if (!service) return null;
+            return {
+              serviceId: sb.service_id,
+              quantity: 1,
+              service,
+            };
+          })
+          .filter((s): s is SelectedService => s !== null);
+        setSelectedServices(mapped);
+      }
+    }
+  }, [isEditMode, existingBooking, services]);
 
   useEffect(() => {
     if (isEditMode) return;
@@ -267,6 +273,28 @@ export default function BookingFormModal({
       setSelectedServices(mapped);
     }
   }, [services, watch, isEditMode, selectedServices.length]);
+
+  // Clear selected services and service sets when branch changes
+  // Use a ref to track the previous branch to avoid clearing on initial mount
+  const prevBranchRef = React.useRef<string | undefined>(watchedBranch);
+
+  useEffect(() => {
+    if (isEditMode) return;
+
+    // Clear selected services and service sets when branch changes
+    // This ensures that services from one branch don't persist when switching to another
+    if (
+      prevBranchRef.current !== undefined &&
+      prevBranchRef.current !== watchedBranch
+    ) {
+      setSelectedServices([]);
+      setSelectedServiceSets([]);
+      setValue("services", [], { shouldValidate: true });
+      setValue("serviceSets", [], { shouldValidate: true });
+    }
+
+    prevBranchRef.current = watchedBranch;
+  }, [watchedBranch, isEditMode, setValue]);
 
   const { mutate: createBooking, isPending: isCreating } = useMutation({
     mutationFn: createBookingAction,

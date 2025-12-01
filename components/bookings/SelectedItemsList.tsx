@@ -4,7 +4,7 @@ import { COLORS } from "@/lib/utils/constants";
 import { formatCurrency } from "@/lib/utils/currency";
 import { Minus, Plus } from "lucide-react-native";
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 type Service = Database["public"]["Tables"]["service"]["Row"];
 
@@ -65,7 +65,12 @@ export function SelectedItemsList({
           {services.length > 0 && serviceSets.length > 0 && (
             <Text style={styles.sectionLabel}>Services</Text>
           )}
-          <View style={styles.itemsList}>
+          <ScrollView
+            style={styles.itemsListContainer}
+            contentContainerStyle={styles.itemsList}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
             {services.map((selectedService) => {
               const itemPrice =
                 (selectedService.service.price || 0) * selectedService.quantity;
@@ -127,7 +132,7 @@ export function SelectedItemsList({
                 </View>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
       )}
 
@@ -137,7 +142,12 @@ export function SelectedItemsList({
           {services.length > 0 && serviceSets.length > 0 && (
             <Text style={styles.sectionLabel}>Service Sets</Text>
           )}
-          <View style={styles.itemsList}>
+          <ScrollView
+            style={styles.itemsListContainer}
+            contentContainerStyle={styles.itemsList}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
             {serviceSets.map((selectedServiceSet) => {
               const itemPrice =
                 (selectedServiceSet.serviceSet.price || 0) *
@@ -224,7 +234,7 @@ export function SelectedItemsList({
                 </View>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
       )}
 
@@ -269,8 +279,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
+  itemsListContainer: {
+    maxHeight: 300,
+  },
   itemsList: {
     gap: 10,
+    paddingBottom: 8,
   },
   item: {
     backgroundColor: "#ffffff",

@@ -36,7 +36,7 @@ const serviceSetSchema = z.object({
   description: z.string().optional(),
   price: z.coerce.number().positive("Price must be greater than 0"),
   branch: z.enum(["NAILS", "SKIN", "LASHES", "MASSAGE"]),
-  is_active: z.boolean().default(true),
+  is_active: z.boolean(),
   service_ids: z.array(z.number()).min(1, "At least one service is required"),
 });
 
@@ -152,15 +152,21 @@ export default function ServiceSetFormModal({
     queryFn: getAllServicesAction,
   });
 
-  const allServices = servicesData?.success
-    ? (servicesData.data || []).filter((s) => s.is_active ?? true)
-    : [];
+  const allServices: Service[] = React.useMemo(() => {
+    if (!servicesData?.success || !servicesData.data) {
+      return [];
+    }
+    const data: Service[] = servicesData.data as Service[];
+    return data.filter((s: Service) => (s.is_active ?? true) !== false);
+  }, [servicesData]);
 
   // Filter services to show only those from the selected branch
-  const services = allServices.filter((s) => s.branch === watchedBranch);
+  const services: Service[] = allServices.filter(
+    (s) => s.branch === watchedBranch
+  );
 
   // Get all selected services (from any branch) for display in summary
-  const selectedServices = allServices.filter((s) =>
+  const selectedServices: Service[] = allServices.filter((s) =>
     selectedServiceIds.includes(s.id)
   );
 
@@ -303,7 +309,7 @@ export default function ServiceSetFormModal({
     },
   });
 
-  const onSubmit = (data: ServiceSetFormData) => {
+  const onSubmit = (data: ServiceSetFormData): void => {
     // Format text fields with capitalizeWords
     const formattedData = {
       ...data,
@@ -401,7 +407,7 @@ export default function ServiceSetFormModal({
                   <Controller
                     control={control}
                     name="price"
-                    render={() => null}
+                    render={() => <View />}
                   />
                 </View>
               </View>
@@ -482,7 +488,12 @@ export default function ServiceSetFormModal({
                       Selected ({selectedServices.length}): Adjust prices for
                       commission calculation (leave empty to use original price)
                     </ResponsiveText>
-                    <View style={styles.selectedServicesList}>
+                    <ScrollView
+                      style={styles.selectedServicesListContainer}
+                      contentContainerStyle={styles.selectedServicesList}
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled={true}
+                    >
                       {selectedServices.map((service) => {
                         const adjustedPrice = servicePrices.get(service.id);
                         const displayPrice =
@@ -541,7 +552,7 @@ export default function ServiceSetFormModal({
                           </View>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                   </View>
                 )}
                 {services.length === 0 ? (
@@ -553,7 +564,12 @@ export default function ServiceSetFormModal({
                     No active services available for {watchedBranch} branch
                   </ResponsiveText>
                 ) : (
-                  <View style={styles.servicesList}>
+                  <ScrollView
+                    style={styles.servicesListContainer}
+                    contentContainerStyle={styles.servicesList}
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                  >
                     {services.map((service) => {
                       const isSelected = selectedServiceIds.includes(
                         service.id
@@ -591,7 +607,7 @@ export default function ServiceSetFormModal({
                         </Pressable>
                       );
                     })}
-                  </View>
+                  </ScrollView>
                 )}
                 {errors.service_ids && (
                   <ResponsiveText
@@ -760,9 +776,12 @@ const styles = StyleSheet.create({
   branchButtonTextUnselected: {
     color: "#374151",
   },
+  servicesListContainer: {
+    maxHeight: scaleDimension(300),
+  },
   servicesList: {
     gap: scaleDimension(8),
-    maxHeight: scaleDimension(300),
+    paddingBottom: scaleDimension(8),
   },
   serviceItem: {
     flexDirection: "row",
@@ -816,8 +835,12 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: scaleDimension(8),
   },
+  selectedServicesListContainer: {
+    maxHeight: scaleDimension(200),
+  },
   selectedServicesList: {
     gap: scaleDimension(10),
+    paddingBottom: scaleDimension(8),
   },
   selectedServiceWithPrice: {
     padding: scaleDimension(12),
