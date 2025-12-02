@@ -242,6 +242,87 @@ export type Database = {
         }
         Relationships: []
       }
+      discount: {
+        Row: {
+          branch: Database["public"]["Enums"]["branch"] | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discount_type: Database["public"]["Enums"]["discount_type"]
+          discount_value: number
+          end_date: string
+          id: number
+          name: string
+          start_date: string
+          status: Database["public"]["Enums"]["discount_status"]
+          updated_at: string | null
+        }
+        Insert: {
+          branch?: Database["public"]["Enums"]["branch"] | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_type?: Database["public"]["Enums"]["discount_type"]
+          discount_value: number
+          end_date: string
+          id?: number
+          name: string
+          start_date: string
+          status?: Database["public"]["Enums"]["discount_status"]
+          updated_at?: string | null
+        }
+        Update: {
+          branch?: Database["public"]["Enums"]["branch"] | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_type?: Database["public"]["Enums"]["discount_type"]
+          discount_value?: number
+          end_date?: string
+          id?: number
+          name?: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["discount_status"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      discount_services: {
+        Row: {
+          created_at: string
+          discount_id: number
+          id: number
+          service_id: number
+        }
+        Insert: {
+          created_at?: string
+          discount_id: number
+          id?: number
+          service_id: number
+        }
+        Update: {
+          created_at?: string
+          discount_id?: number
+          id?: number
+          service_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_services_discount_id_fkey"
+            columns: ["discount_id"]
+            isOneToOne: false
+            referencedRelation: "discount"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_reminders: {
         Row: {
           booking_id: number
@@ -285,6 +366,7 @@ export type Database = {
           name: string | null
           role: Database["public"]["Enums"]["employee_role"]
           salary: number
+          sales_deduction_rate: number
           updated_at: string
           user_id: string
         }
@@ -298,6 +380,7 @@ export type Database = {
           name?: string | null
           role: Database["public"]["Enums"]["employee_role"]
           salary?: number
+          sales_deduction_rate?: number
           updated_at?: string
           user_id: string
         }
@@ -311,6 +394,7 @@ export type Database = {
           name?: string | null
           role?: Database["public"]["Enums"]["employee_role"]
           salary?: number
+          sales_deduction_rate?: number
           updated_at?: string
           user_id?: string
         }
@@ -529,6 +613,7 @@ export type Database = {
           period_start_date: string | null
           released_at: string
           released_by: string
+          sales_deduction: number
           total_amount: number
           updated_at: string
         }
@@ -544,6 +629,7 @@ export type Database = {
           period_start_date?: string | null
           released_at?: string
           released_by: string
+          sales_deduction?: number
           total_amount: number
           updated_at?: string
         }
@@ -559,6 +645,7 @@ export type Database = {
           period_start_date?: string | null
           released_at?: string
           released_by?: string
+          sales_deduction?: number
           total_amount?: number
           updated_at?: string
         }
@@ -929,6 +1016,7 @@ export type Database = {
           success: boolean
         }[]
       }
+      expire_discounts: { Args: never; Returns: undefined }
       get_commission_rate: { Args: { p_role: string }; Returns: number }
       get_employees_with_user_info: {
         Args: never
@@ -940,6 +1028,14 @@ export type Database = {
           salary: number
           user_email: string
           user_id: string
+        }[]
+      }
+      get_overall_sales_summary: {
+        Args: { p_time_span?: string }
+        Returns: {
+          net_sales: number
+          total_sales: number
+          total_sales_deductions: number
         }[]
       }
       mark_attendance_and_update_salary: {
@@ -998,6 +1094,8 @@ export type Database = {
         | "COMPLETED"
         | "NO_SHOW"
       branch: "NAILS" | "SKIN" | "LASHES" | "MASSAGE"
+      discount_status: "ACTIVE" | "EXPIRED" | "CANCELLED"
+      discount_type: "ABSOLUTE" | "PERCENTAGE"
       employee_role: "OWNER" | "CASHIER" | "MASSEUSE" | "WORKER"
       gift_certificate_status: "ACTIVE" | "USED" | "EXPIRED"
       payslip_request_status: "PENDING" | "APPROVED" | "REJECTED"
@@ -1140,6 +1238,8 @@ export const Constants = {
         "NO_SHOW",
       ],
       branch: ["NAILS", "SKIN", "LASHES", "MASSAGE"],
+      discount_status: ["ACTIVE", "EXPIRED", "CANCELLED"],
+      discount_type: ["ABSOLUTE", "PERCENTAGE"],
       employee_role: ["OWNER", "CASHIER", "MASSEUSE", "WORKER"],
       gift_certificate_status: ["ACTIVE", "USED", "EXPIRED"],
       payslip_request_status: ["PENDING", "APPROVED", "REJECTED"],

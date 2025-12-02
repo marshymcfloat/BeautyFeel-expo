@@ -13,8 +13,6 @@ import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Lazy load management screens using dynamic imports
-// These components are always rendered to maintain hook order
 function LazyManageBookings() {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
@@ -23,7 +21,6 @@ function LazyManageBookings() {
   React.useEffect(() => {
     let isMounted = true;
 
-    // Load immediately for bookings (default tab)
     import("@/components/manage/ManageBookings")
       .then((module) => {
         if (isMounted) {
@@ -43,7 +40,6 @@ function LazyManageBookings() {
     };
   }, []);
 
-  // Always call hooks in the same order
   if (loading || !Component) {
     return <LoadingState variant="skeleton" />;
   }
@@ -57,19 +53,13 @@ function LazyManageServices() {
   const [loading, setLoading] = React.useState(false);
   const [shouldLoad, setShouldLoad] = React.useState(false);
 
-  // Get activeTab from parent context or prop - for now, load when tab is accessed
   React.useEffect(() => {
-    // Check if services tab should be loaded
-    // This will be triggered when the tab is first accessed
     const checkLoad = () => {
-      // Load when services tab becomes active (handled by parent)
-      // For now, we'll load immediately but could be optimized
       if (!shouldLoad) {
         setShouldLoad(true);
       }
     };
 
-    // Load when component mounts (it's always rendered now)
     checkLoad();
   }, []);
 
@@ -98,7 +88,6 @@ function LazyManageServices() {
     };
   }, [shouldLoad]);
 
-  // Always call hooks in the same order
   if (loading || !Component) {
     return <LoadingState variant="skeleton" />;
   }
@@ -113,7 +102,6 @@ function LazyManageEmployees() {
   const [shouldLoad, setShouldLoad] = React.useState(false);
 
   React.useEffect(() => {
-    // Load when component mounts (it's always rendered now)
     if (!shouldLoad) {
       setShouldLoad(true);
     }
@@ -144,7 +132,6 @@ function LazyManageEmployees() {
     };
   }, [shouldLoad]);
 
-  // Always call hooks in the same order
   if (loading || !Component) {
     return <LoadingState variant="skeleton" />;
   }
@@ -159,7 +146,6 @@ function LazyManageVouchers() {
   const [shouldLoad, setShouldLoad] = React.useState(false);
 
   React.useEffect(() => {
-    // Load when component mounts (it's always rendered now)
     if (!shouldLoad) {
       setShouldLoad(true);
     }
@@ -190,7 +176,6 @@ function LazyManageVouchers() {
     };
   }, [shouldLoad]);
 
-  // Always call hooks in the same order
   if (loading || !Component) {
     return <LoadingState variant="skeleton" />;
   }
@@ -205,7 +190,6 @@ function LazyManageGiftCertificates() {
   const [shouldLoad, setShouldLoad] = React.useState(false);
 
   React.useEffect(() => {
-    // Load when component mounts (it's always rendered now)
     if (!shouldLoad) {
       setShouldLoad(true);
     }
@@ -236,7 +220,50 @@ function LazyManageGiftCertificates() {
     };
   }, [shouldLoad]);
 
-  // Always call hooks in the same order
+  if (loading || !Component) {
+    return <LoadingState variant="skeleton" />;
+  }
+
+  return <Component />;
+}
+
+function LazyManageDiscounts() {
+  const [Component, setComponent] =
+    React.useState<React.ComponentType<any> | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [shouldLoad, setShouldLoad] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!shouldLoad) {
+      setShouldLoad(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!shouldLoad) return;
+
+    let isMounted = true;
+    setLoading(true);
+
+    import("@/components/manage/ManageDiscounts")
+      .then((module) => {
+        if (isMounted) {
+          setComponent(() => module.default as React.ComponentType<any>);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading ManageDiscounts:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldLoad]);
+
   if (loading || !Component) {
     return <LoadingState variant="skeleton" />;
   }
@@ -249,14 +276,14 @@ type ManageTab =
   | "services"
   | "employees"
   | "vouchers"
-  | "giftCertificates";
+  | "giftCertificates"
+  | "discounts";
 
 export default function ManageScreen() {
   const { hasRole, loading } = useAuth();
   const isOwner = hasRole("owner");
   const [activeTab, setActiveTab] = useState<ManageTab>("bookings");
 
-  // Responsive variables
   const containerPadding = getContainerPadding();
   const iconSize = scaleDimension(24);
 
@@ -280,6 +307,7 @@ export default function ManageScreen() {
     { id: "employees", label: "Employees" },
     { id: "vouchers", label: "Vouchers" },
     { id: "giftCertificates", label: "Gift Certificates" },
+    { id: "discounts", label: "Discounts" },
   ];
 
   return (
@@ -336,7 +364,6 @@ export default function ManageScreen() {
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
           >
-            {/* Always render all lazy wrapper components to maintain hook order */}
             <View
               style={[
                 styles.tabContent,
@@ -382,6 +409,15 @@ export default function ManageScreen() {
             >
               <LazyManageGiftCertificates />
             </View>
+            <View
+              style={[
+                styles.tabContent,
+                activeTab !== "discounts" && styles.hiddenTab,
+              ]}
+              pointerEvents={activeTab === "discounts" ? "auto" : "none"}
+            >
+              <LazyManageDiscounts />
+            </View>
           </ScrollView>
         </SafeAreaView>
       </LinearGradient>
@@ -401,7 +437,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabsWrapper: {
-    // Wrapper to ensure scrollview height is constrained if needed
     maxHeight: scaleDimension(60),
   },
   tabSelectorScrollView: {
@@ -413,30 +448,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: scaleDimension(8),
     alignItems: "center",
-    // Removed background and shadow from container to save height and look cleaner
   },
   tabButton: {
     paddingVertical: scaleDimension(6),
     paddingHorizontal: scaleDimension(14),
-    borderRadius: scaleDimension(20), // Pill shape
+    borderRadius: scaleDimension(20),
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "white",
     borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.5)", // Light gray
-    ...PLATFORM.shadow, // Shadow now on individual buttons
-    shadowOpacity: 0.05, // Lighter shadow
+    borderColor: "rgba(229, 231, 235, 0.5)",
+    ...PLATFORM.shadow,
+    shadowOpacity: 0.05,
   },
   tabButtonActive: {
-    backgroundColor: "#fdf2f8", // pink-50
-    borderColor: "#fbcfe8", // pink-200
+    backgroundColor: "#fdf2f8",
+    borderColor: "#fbcfe8",
   },
   tabButtonText: {
     fontWeight: "500",
     color: "#6b7280",
   },
   tabButtonTextActive: {
-    color: "#db2777", // Pink-600
+    color: "#db2777",
     fontWeight: "600",
   },
   content: {

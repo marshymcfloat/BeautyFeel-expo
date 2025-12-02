@@ -1,25 +1,28 @@
 import { useAuth } from "@/lib/hooks/useAuth";
-import { useResponsive } from "@/lib/hooks/useResponsive";
 import {
   scaleDimension,
   scaleFont,
+  SCREEN_HEIGHT,
   SCREEN_WIDTH,
 } from "@/lib/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { Sparkles } from "lucide-react-native";
+import { ArrowRight, Sparkles, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Lazy load the form to keep initial bundle size small
 function LazyLoginForm({ onSuccess }: { onSuccess: (value: boolean) => void }) {
   const [LoginFormComponent, setLoginFormComponent] =
     useState<React.ComponentType<{
@@ -33,7 +36,11 @@ function LazyLoginForm({ onSuccess }: { onSuccess: (value: boolean) => void }) {
   }, []);
 
   if (!LoginFormComponent) {
-    return <ActivityIndicator size="small" color="#ec4899" />;
+    return (
+      <View style={{ padding: 20, alignItems: "center" }}>
+        <ActivityIndicator size="small" color="#ec4899" />
+      </View>
+    );
   }
 
   return <LoginFormComponent onSuccess={onSuccess} />;
@@ -46,6 +53,7 @@ export default function Index() {
   const [redirectAttempted, setRedirectAttempted] = useState(false);
   const [appReady, setAppReady] = useState(false);
 
+  // --- Auth & Redirect Logic (Kept exactly as original) ---
   useEffect(() => {
     if (!loading) {
       const timer = setTimeout(() => {
@@ -57,435 +65,476 @@ export default function Index() {
   }, [loading]);
 
   useEffect(() => {
-    console.log("Auth state in index.tsx:", {
-      hasUser: !!user,
-      loading,
-      userId: user?.id,
-      hasModal: showAuthModal,
-      redirectAttempted,
-    });
-
     if (!loading && user && !redirectAttempted) {
-      console.log("✅ User authenticated, preparing redirect...", {
-        userId: user.id,
-        hasModal: showAuthModal,
-      });
-
       if (showAuthModal) {
-        console.log("Closing modal before redirect...");
         setShowAuthModal(false);
         const timer = setTimeout(() => {
-          console.log("Executing redirect after modal close...");
           setRedirectAttempted(true);
-          const targetRoute = "/(protected-routes)/(tabs)/home";
-          console.log("Navigating to:", targetRoute);
-          router.replace(targetRoute as any);
-          console.log("Router.replace called after modal close");
+          router.replace("/(protected-routes)/(tabs)/home" as any);
         }, 500);
         return () => clearTimeout(timer);
       } else {
-        console.log("Executing redirect immediately (synchronously)...");
         setRedirectAttempted(true);
-        const targetRoute = "/(protected-routes)/(tabs)/home";
-        console.log("About to navigate to:", targetRoute);
-        router.replace(targetRoute as any);
-        console.log("Router.replace called synchronously");
+        router.replace("/(protected-routes)/(tabs)/home" as any);
       }
     } else if (!loading && !user) {
       setRedirectAttempted(false);
     }
   }, [user, loading, showAuthModal, router]);
+  // ---------------------------------------------------------
 
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (loading) {
-        setLoadingTimeout(true);
-      }
+      if (loading) setLoadingTimeout(true);
     }, 10000);
-
     return () => clearTimeout(timeout);
   }, [loading]);
 
+  // --- Loading Screen ---
   if (loading || !appReady) {
     return (
-      <LinearGradient
-        colors={["#fdf2f8", "#fae8ff", "#f3e8ff"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="box-none"
-      >
-        <SafeAreaView
-          style={[styles.safeArea, styles.loadingContainer]}
-          pointerEvents="box-none"
-        >
-          <View style={styles.loadingContent}>
-            <ActivityIndicator size="large" color="#ec4899" />
-            <Text style={styles.loadingText}>Loading...</Text>
-            {loadingTimeout && (
-              <View style={styles.timeoutContainer}>
-                <Text style={styles.timeoutText}>
-                  Taking longer than expected...
-                </Text>
-                <Pressable
-                  onPress={async () => {
-                    console.log("Clear Session button pressed");
-                    const { supabase } = await import("@/lib/utils/supabase");
-                    await supabase.auth.signOut();
-                    router.replace("/");
-                  }}
-                  style={({ pressed }) => [
-                    styles.clearButton,
-                    pressed && styles.clearButtonPressed,
-                  ]}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.clearButtonText}>
-                    Clear Session & Retry
-                  </Text>
-                </Pressable>
-              </View>
-            )}
+      <View style={styles.container}>
+        <LinearGradient
+          colors={["#fff1f2", "#fdf4ff", "#f5f3ff"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.loadingContainer}>
+          <View style={styles.logoIconContainerSmall}>
+            <LinearGradient
+              colors={["#ec4899", "#d946ef"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <Sparkles size={24} color="white" />
           </View>
-        </SafeAreaView>
-      </LinearGradient>
+          <ActivityIndicator
+            size="large"
+            color="#ec4899"
+            style={{ marginTop: 20 }}
+          />
+
+          {loadingTimeout && (
+            <Pressable
+              onPress={async () => {
+                const { supabase } = await import("@/lib/utils/supabase");
+                await supabase.auth.signOut();
+                router.replace("/");
+              }}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryText}>Reload Session</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
     );
   }
 
-  if (redirectAttempted && user && !loading) {
-    return null;
-  }
+  if (redirectAttempted && user && !loading) return null;
 
   return (
-    <>
-      <Modal
-        visible={showAuthModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-      >
-        <View style={styles.modalOverlay}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+
+      {/* --- Ambient Background --- */}
+      <LinearGradient
+        colors={["#fff1f2", "#fae8ff", "#ede9fe"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      {/* Floating Orbs for depth */}
+      <View style={[styles.orb, styles.orb1]} />
+      <View style={[styles.orb, styles.orb2]} />
+      <View style={[styles.orb, styles.orb3]} />
+
+      {/* --- Main Content --- */}
+      <SafeAreaView style={styles.safeArea}>
+        {/* Top Header */}
+        <View style={styles.header}>
+          <View style={styles.pillContainer}>
+            <Text style={styles.pillText}>Professional Suite</Text>
+          </View>
           <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setShowAuthModal(false)}
-          />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.iconContainer}>
+            style={styles.signInButton}
+            onPress={() => setShowAuthModal(true)}
+          >
+            <Text style={styles.signInText}>Login</Text>
+          </Pressable>
+        </View>
+
+        {/* Center Hero */}
+        <View style={styles.heroContent}>
+          {/* Glass Card Effect */}
+          <View style={styles.glassCard}>
+            <View style={styles.logoWrapper}>
+              <View style={styles.logoIconContainer}>
                 <LinearGradient
                   colors={["#ec4899", "#a855f7"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
-                >
-                  <View style={styles.iconInner}>
-                    <Sparkles size={28} color="white" />
-                  </View>
-                </LinearGradient>
+                />
+                <Sparkles size={40} color="white" />
               </View>
-              <Text style={styles.modalTitle}>Welcome Back</Text>
-              <Text style={styles.modalSubtitle}>
-                Sign in to your Beautyfeel account
-              </Text>
             </View>
 
-            <LazyLoginForm onSuccess={setShowAuthModal} />
+            <Text style={styles.brandName}>BEAUTYFEEL</Text>
+            <Text style={styles.tagline}>
+              Manage your salon with{"\n"}elegance and precision.
+            </Text>
+
+            <View style={styles.featureRow}>
+              <View style={styles.featureDot} />
+              <Text style={styles.featureText}>Smart Booking</Text>
+              <View style={[styles.featureDot, { marginLeft: 12 }]} />
+              <Text style={styles.featureText}>POS</Text>
+              <View style={[styles.featureDot, { marginLeft: 12 }]} />
+              <Text style={styles.featureText}>Analytics</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom Action */}
+        <View style={styles.bottomSection}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.getStartedButton,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
+            onPress={() => setShowAuthModal(true)}
+          >
+            <LinearGradient
+              colors={["#ec4899", "#d946ef", "#a855f7"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.getStartedGradient}
+            >
+              <Text style={styles.getStartedText}>Get Started</Text>
+              <ArrowRight size={20} color="white" style={{ marginLeft: 8 }} />
+            </LinearGradient>
+          </Pressable>
+          <Text style={styles.versionText}>
+            v1.0.0 • Employee & Owner Access
+          </Text>
+        </View>
+      </SafeAreaView>
+
+      {/* --- Auth Modal --- */}
+      <Modal
+        visible={showAuthModal}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setShowAuthModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          {/* Backdrop Pressable */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowAuthModal(false)}
+          />
+
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Welcome Back</Text>
+              <Pressable
+                onPress={() => setShowAuthModal(false)}
+                style={styles.closeButton}
+              >
+                <X size={20} color="#6b7280" />
+              </Pressable>
+            </View>
+            <Text style={styles.modalSubtitle}>Sign in to your dashboard</Text>
+
+            <View style={styles.formContainer}>
+              <LazyLoginForm onSuccess={setShowAuthModal} />
+            </View>
           </View>
         </View>
       </Modal>
-
-      <LinearGradient
-        colors={["#fdf2f8", "#fae8ff", "#f3e8ff"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <Pressable
-              style={styles.signInButton}
-              onPress={() => setShowAuthModal(true)}
-            >
-              <Text style={styles.signInText}>Sign In</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.heroContent}>
-            <View style={[styles.decorativeCircle, styles.decorativeCircle1]} />
-            <View style={[styles.decorativeCircle, styles.decorativeCircle2]} />
-            <View style={[styles.decorativeCircle, styles.decorativeCircle3]} />
-
-            <View style={styles.logoSection}>
-              <View style={styles.logoIconContainer}>
-                <LinearGradient
-                  colors={["#ec4899", "#d946ef", "#a855f7"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                >
-                  <View style={styles.logoIconInner}>
-                    <Sparkles size={44} color="white" />
-                  </View>
-                </LinearGradient>
-              </View>
-
-              <Text 
-                style={styles.brandName} 
-                numberOfLines={1} 
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-              >
-                BEAUTYFEEL
-              </Text>
-
-              <LinearGradient
-                colors={["#ec4899", "#a855f7"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.divider}
-              />
-
-              <Text style={styles.tagline}>Your Beauty, Our Passion</Text>
-            </View>
-          </View>
-
-          <View style={styles.bottomSection}>
-            <Pressable
-              style={styles.getStartedButton}
-              onPress={() => setShowAuthModal(true)}
-            >
-              <LinearGradient
-                colors={["#ec4899", "#d946ef"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.getStartedGradient}
-              >
-                <Text style={styles.getStartedText}>Get Started</Text>
-              </LinearGradient>
-            </Pressable>
-
-            <Text style={styles.bottomText}>
-              Join thousands of beauty professionals
-            </Text>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
-    </>
+    </View>
   );
 }
 
 const isSmall = SCREEN_WIDTH < 375;
 
 const styles = StyleSheet.create({
-    safeArea: {
-      flex: 1,
-    },
-    header: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      paddingHorizontal: scaleDimension(24),
-      paddingVertical: scaleDimension(16),
-    },
-    signInButton: {
-      backgroundColor: "rgba(255, 255, 255, 0.8)",
-      borderRadius: scaleDimension(999),
-      paddingHorizontal: scaleDimension(20),
-      paddingVertical: scaleDimension(10),
-    },
-    signInText: {
-      color: "#ec4899",
-      fontWeight: "600",
-      fontSize: scaleFont(14),
-    },
-    heroContent: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: scaleDimension(32),
-    },
-    decorativeCircle: {
-      position: "absolute",
-      borderRadius: scaleDimension(999),
-    },
-    decorativeCircle1: {
-      top: scaleDimension(80),
-      left: scaleDimension(32),
-      width: scaleDimension(80),
-      height: scaleDimension(80),
-      backgroundColor: "rgba(244, 114, 182, 0.2)",
-    },
-    decorativeCircle2: {
-      top: scaleDimension(160),
-      right: scaleDimension(48),
-      width: scaleDimension(56),
-      height: scaleDimension(56),
-      backgroundColor: "rgba(192, 132, 252, 0.3)",
-    },
-    decorativeCircle3: {
-      bottom: scaleDimension(128),
-      left: scaleDimension(64),
-      width: scaleDimension(96),
-      height: scaleDimension(96),
-      backgroundColor: "rgba(232, 121, 249, 0.25)",
-    },
-    logoSection: {
-      alignItems: "center",
-    },
-    logoIconContainer: {
-      width: scaleDimension(96),
-      height: scaleDimension(96),
-      borderRadius: scaleDimension(24),
-      marginBottom: scaleDimension(32),
-      overflow: "hidden",
-    },
-    logoIconInner: {
-      width: "100%",
-      height: "100%",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    brandName: {
-      fontSize: scaleFont(isSmall ? 28 : SCREEN_WIDTH < 390 ? 32 : 36),
-      fontWeight: "900",
-      letterSpacing: scaleDimension(SCREEN_WIDTH < 390 ? 3 : 5),
-      color: "#1f1f1f",
-      textTransform: "uppercase",
-      textAlign: "center",
-      includeFontPadding: false,
-    },
-    divider: {
-      height: scaleDimension(4),
-      width: scaleDimension(192),
-      borderRadius: scaleDimension(999),
-      marginTop: scaleDimension(16),
-      marginBottom: scaleDimension(16),
-    },
-    tagline: {
-      fontSize: scaleFont(16),
-      color: "#4b5563",
-      fontWeight: "500",
-      letterSpacing: scaleDimension(0.5),
-    },
-    bottomSection: {
-      paddingHorizontal: scaleDimension(32),
-      paddingBottom: scaleDimension(40),
-    },
-    getStartedButton: {
-      borderRadius: scaleDimension(16),
-      overflow: "hidden",
-    },
-    getStartedGradient: {
-      paddingVertical: scaleDimension(16),
-      alignItems: "center",
-    },
-    getStartedText: {
-      color: "white",
-      fontSize: scaleFont(16),
-      fontWeight: "bold",
-    },
-    bottomText: {
-      textAlign: "center",
-      color: "#6b7280",
-      fontSize: scaleFont(12),
-      marginTop: scaleDimension(16),
-    },
-    modalOverlay: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: scaleDimension(24),
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-    },
-    modalBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-    },
-    modalContent: {
-      backgroundColor: "white",
-      borderRadius: scaleDimension(24),
-      width: "100%",
-      maxWidth: scaleDimension(448),
-      padding: scaleDimension(32),
-      zIndex: 10,
-    },
-    modalHeader: {
-      alignItems: "center",
-      marginBottom: scaleDimension(24),
-    },
-    iconContainer: {
-      width: scaleDimension(64),
-      height: scaleDimension(64),
-      borderRadius: scaleDimension(999),
-      marginBottom: scaleDimension(16),
-      overflow: "hidden",
-    },
-    iconInner: {
-      width: "100%",
-      height: "100%",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    modalTitle: {
-      fontSize: scaleFont(24),
-      fontWeight: "bold",
-      color: "#111827",
-    },
-    modalSubtitle: {
-      color: "#6b7280",
-      marginTop: scaleDimension(4),
-      fontSize: scaleFont(14),
-    },
-    loadingContainer: {
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    loadingContent: {
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 1,
-    },
-    loadingText: {
-      marginTop: scaleDimension(16),
-      color: "#6b7280",
-      fontSize: scaleFont(16),
-    },
-    timeoutContainer: {
-      alignItems: "center",
-      marginTop: scaleDimension(24),
-      zIndex: 1,
-    },
-    timeoutText: {
-      marginTop: scaleDimension(12),
-      marginBottom: scaleDimension(16),
-      color: "#ef4444",
-      fontSize: scaleFont(14),
-      textAlign: "center",
-    },
-    clearButton: {
-      backgroundColor: "#ef4444",
-      paddingHorizontal: scaleDimension(24),
-      paddingVertical: scaleDimension(14),
-      borderRadius: scaleDimension(12),
-      minWidth: scaleDimension(200),
-      minHeight: scaleDimension(48),
-      justifyContent: "center",
-      alignItems: "center",
-      elevation: 2,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: scaleDimension(2) },
-      shadowOpacity: 0.25,
-      shadowRadius: scaleDimension(3.84),
-    },
-    clearButtonPressed: {
-      backgroundColor: "#dc2626",
-      opacity: 0.8,
-    },
-    clearButtonText: {
-      color: "white",
-      fontSize: scaleFont(16),
-      fontWeight: "600",
-      textAlign: "center",
-    },
-  });
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  safeArea: {
+    flex: 1,
+  },
+
+  // Ambient Orbs
+  orb: {
+    position: "absolute",
+    borderRadius: 999,
+    opacity: 0.5,
+  },
+  orb1: {
+    width: SCREEN_WIDTH * 0.8,
+    height: SCREEN_WIDTH * 0.8,
+    backgroundColor: "#fbcfe8", // pink-200
+    top: -SCREEN_WIDTH * 0.2,
+    left: -SCREEN_WIDTH * 0.2,
+    // Note: blurRadius is not a valid ViewStyle property in React Native
+    // Use expo-blur's BlurView component if blur effect is needed
+  },
+  orb2: {
+    width: SCREEN_WIDTH * 0.7,
+    height: SCREEN_WIDTH * 0.7,
+    backgroundColor: "#ddd6fe", // violet-200
+    bottom: -SCREEN_WIDTH * 0.1,
+    right: -SCREEN_WIDTH * 0.2,
+  },
+  orb3: {
+    width: SCREEN_WIDTH * 0.5,
+    height: SCREEN_WIDTH * 0.5,
+    backgroundColor: "#f5d0fe", // fuchsia-200
+    top: SCREEN_HEIGHT * 0.4,
+    left: SCREEN_WIDTH * 0.2,
+    opacity: 0.3,
+  },
+
+  // Header
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 12,
+  },
+  pillContainer: {
+    backgroundColor: "rgba(255,255,255,0.6)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.8)",
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#a855f7",
+    letterSpacing: 0.5,
+  },
+  signInButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  signInText: {
+    color: "#4b5563",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+
+  // Hero Section
+  heroContent: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  glassCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.65)",
+    borderRadius: 32,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#a855f7",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  logoWrapper: {
+    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#ec4899",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  logoIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  brandName: {
+    fontSize: scaleFont(32),
+    fontWeight: "900",
+    color: "#1f2937", // gray-800
+    letterSpacing: 4,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  tagline: {
+    fontSize: scaleFont(16),
+    color: "#6b7280", // gray-500
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.5)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  featureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#ec4899",
+    marginRight: 6,
+  },
+  featureText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4b5563",
+    textTransform: "uppercase",
+  },
+
+  // Bottom Section
+  bottomSection: {
+    paddingHorizontal: 24,
+    paddingBottom: scaleDimension(48),
+  },
+  getStartedButton: {
+    borderRadius: 20,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#ec4899",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  getStartedGradient: {
+    paddingVertical: 18,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  getStartedText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  versionText: {
+    textAlign: "center",
+    color: "#9ca3af",
+    fontSize: 12,
+    marginTop: 20,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 32,
+    minHeight: "60%",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 20,
+      },
+    }),
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  closeButton: {
+    padding: 8,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 20,
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginBottom: 32,
+  },
+  formContainer: {
+    flex: 1,
+  },
+
+  // Loading States
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logoIconContainerSmall: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#ec4899",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  retryButton: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  retryText: {
+    color: "#ef4444",
+    fontWeight: "600",
+  },
+});

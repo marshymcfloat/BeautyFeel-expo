@@ -1,9 +1,19 @@
 import { getEmployeeAttendance } from "@/lib/actions/attendanceActions";
 import { useAuth } from "@/lib/hooks/useAuth";
+import {
+  getPhilippineDate,
+  getPhilippineDateObject,
+} from "@/lib/utils/dateTime";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar as CalendarIcon } from "lucide-react-native";
 import React, { useMemo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View, Platform } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 interface AttendanceCalendarProps {
   month?: number; // 0-11 (JavaScript month index)
@@ -15,11 +25,13 @@ export default function AttendanceCalendar({
   year: propYear,
 }: AttendanceCalendarProps) {
   const { employee } = useAuth();
-  const today = new Date();
+  // Use Philippine time for date calculations
+  const today = getPhilippineDateObject();
   const currentMonth = propMonth ?? today.getMonth();
   const currentYear = propYear ?? today.getFullYear();
 
   // Calculate start and end dates for the month
+  // Note: These are local dates, not UTC, so they should be correct
   const startDate = new Date(currentYear, currentMonth, 1)
     .toISOString()
     .split("T")[0];
@@ -36,6 +48,9 @@ export default function AttendanceCalendar({
   });
 
   // Create a map of dates to attendance status
+  // Note: Only dates with explicit attendance records are included
+  // Dates without records show as undefined (no data), which is correct for historical viewing
+  // This ensures we don't copy yesterday's status to new days
   const attendanceMap = useMemo(() => {
     const map = new Map<string, boolean>();
     if (attendanceData?.success && attendanceData.data) {
@@ -127,7 +142,8 @@ export default function AttendanceCalendar({
             return <View key={`empty-${index}`} style={styles.dayCell} />;
           }
 
-          const isToday = item.date === today.toISOString().split("T")[0];
+          // Compare with Philippine time to determine if it's today
+          const isToday = item.date === getPhilippineDate();
           const hasAttendance = item.isPresent !== undefined;
           const isPresent = item.isPresent === true;
 

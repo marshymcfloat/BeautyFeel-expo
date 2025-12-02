@@ -46,6 +46,13 @@ export interface SalaryBreakdown {
   }>;
 }
 
+export interface SalesSummary {
+  totalCommissions: number;
+  totalSalesDeductions: number;
+  netSales: number;
+  totalCommissionTransactions: number;
+}
+
 /**
  * Fetch employee record by user_id (auth user ID)
  */
@@ -242,6 +249,7 @@ export async function updateEmployeeAction(
     commission_rate?: number;
     daily_rate?: number;
     can_request_payslip?: boolean;
+    sales_deduction_rate?: number;
   },
 ) {
   try {
@@ -328,6 +336,9 @@ export async function updateEmployeeAction(
     }
     if (data.can_request_payslip !== undefined) {
       employeeUpdate.can_request_payslip = data.can_request_payslip;
+    }
+    if (data.sales_deduction_rate !== undefined) {
+      employeeUpdate.sales_deduction_rate = data.sales_deduction_rate;
     }
     employeeUpdate.updated_at = new Date().toISOString();
 
@@ -677,6 +688,54 @@ export async function getEmployeeSalaryBreakdown(employeeId: string) {
     return {
       success: false,
       error: "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Get sales summary for an employee (with and without deductions)
+ */
+export async function getEmployeeSalesSummary(employeeId: string) {
+  try {
+    const { data, error } = await supabase.rpc("get_employee_sales_summary", {
+      p_employee_id: employeeId,
+    });
+
+    if (error) {
+      console.error("Error fetching sales summary:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to fetch sales summary",
+      };
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        success: true,
+        data: {
+          totalCommissions: 0,
+          totalSalesDeductions: 0,
+          netSales: 0,
+          totalCommissionTransactions: 0,
+        } as SalesSummary,
+      };
+    }
+
+    const result = data[0];
+    return {
+      success: true,
+      data: {
+        totalCommissions: parseFloat(result.total_commissions || 0),
+        totalSalesDeductions: parseFloat(result.total_sales_deductions || 0),
+        netSales: parseFloat(result.net_sales || 0),
+        totalCommissionTransactions: parseInt(result.total_commission_transactions || 0, 10),
+      } as SalesSummary,
+    };
+  } catch (error: any) {
+    console.error("Unexpected error fetching sales summary:", error);
+    return {
+      success: false,
+      error: error.message || "An unexpected error occurred",
     };
   }
 }

@@ -6,6 +6,7 @@ import {
   PLATFORM,
   scaleDimension,
 } from "@/lib/utils/responsive";
+
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ToggleLeft, ToggleRight, Users } from "lucide-react-native";
 import React, { useState } from "react";
@@ -56,7 +57,6 @@ export default function EmployeePayslipPermissions() {
   });
 
   const employees = employeesData?.data || [];
-  // Filter out owners
   const nonOwnerEmployees = employees.filter((emp) => emp.role !== "OWNER");
 
   const handleToggle = (employeeId: string, currentValue: boolean) => {
@@ -78,19 +78,11 @@ export default function EmployeePayslipPermissions() {
             <View style={styles.headerIconWrapper}>
               <Users size={iconSize} color="#ec4899" />
             </View>
-            <View>
-              <ResponsiveText
-                variant="lg"
-                style={styles.title}
-                numberOfLines={1}
-              >
+            <View style={styles.headerTextContainer}>
+              <ResponsiveText variant="lg" style={styles.title}>
                 Payslip Permissions
               </ResponsiveText>
-              <ResponsiveText
-                variant="xs"
-                style={styles.subtitle}
-                numberOfLines={1}
-              >
+              <ResponsiveText variant="xs" style={styles.subtitle}>
                 Manage employee access
               </ResponsiveText>
             </View>
@@ -98,11 +90,7 @@ export default function EmployeePayslipPermissions() {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color="#ec4899" />
-          <ResponsiveText
-            variant="sm"
-            style={styles.loadingText}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="sm" style={styles.loadingText}>
             Loading employees...
           </ResponsiveText>
         </View>
@@ -118,30 +106,18 @@ export default function EmployeePayslipPermissions() {
             <View style={styles.headerIconWrapper}>
               <Users size={iconSize} color="#ec4899" />
             </View>
-            <View>
-              <ResponsiveText
-                variant="lg"
-                style={styles.title}
-                numberOfLines={1}
-              >
+            <View style={styles.headerTextContainer}>
+              <ResponsiveText variant="lg" style={styles.title}>
                 Payslip Permissions
               </ResponsiveText>
-              <ResponsiveText
-                variant="xs"
-                style={styles.subtitle}
-                numberOfLines={1}
-              >
+              <ResponsiveText variant="xs" style={styles.subtitle}>
                 Manage employee access
               </ResponsiveText>
             </View>
           </View>
         </View>
         <View style={styles.emptyContainer}>
-          <ResponsiveText
-            variant="sm"
-            style={styles.emptyText}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="sm" style={styles.emptyText}>
             No employees found
           </ResponsiveText>
         </View>
@@ -163,24 +139,22 @@ export default function EmployeePayslipPermissions() {
             <Users size={iconSize} color="#ec4899" />
           </View>
           <View style={styles.headerTextContainer}>
-            <ResponsiveText variant="lg" style={styles.title} numberOfLines={1}>
+            <ResponsiveText variant="lg" style={styles.title}>
               Payslip Permissions
             </ResponsiveText>
-            <ResponsiveText
-              variant="xs"
-              style={styles.subtitle}
-              numberOfLines={2}
-            >
+            <ResponsiveText variant="xs" style={styles.subtitle}>
               {nonOwnerEmployees.filter((e) => e.can_request_payslip).length} of{" "}
               {nonOwnerEmployees.length} employees can request
             </ResponsiveText>
           </View>
         </View>
-        {expanded ? (
-          <ToggleRight size={toggleIconSize} color="#ec4899" />
-        ) : (
-          <ToggleLeft size={toggleIconSize} color="#9ca3af" />
-        )}
+        <View style={styles.expandIcon}>
+          {expanded ? (
+            <ToggleRight size={toggleIconSize} color="#ec4899" />
+          ) : (
+            <ToggleLeft size={toggleIconSize} color="#9ca3af" />
+          )}
+        </View>
       </Pressable>
 
       {expanded && (
@@ -240,18 +214,10 @@ function EmployeePermissionItem({
           </ResponsiveText>
         </View>
         <View style={styles.employeeDetails}>
-          <ResponsiveText
-            variant="md"
-            style={styles.employeeName}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="md" style={styles.employeeName}>
             {employee.name || employee.role}
           </ResponsiveText>
-          <ResponsiveText
-            variant="xs"
-            style={styles.employeeId}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="xs" style={styles.employeeId}>
             ID: {employee.id.slice(0, 8)}
           </ResponsiveText>
         </View>
@@ -300,7 +266,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: scaleDimension(12),
-    flex: 1,
+    flex: 1, // Allow text to take space
   },
   headerIconWrapper: {
     width: scaleDimension(40),
@@ -311,18 +277,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTextContainer: {
-    flex: 1,
-    minWidth: 0, // Prevents text overflow
+    flex: 1, // Crucial: Allows wrapping
+    marginRight: scaleDimension(8),
+  },
+  expandIcon: {
+    marginLeft: scaleDimension(4),
   },
   title: {
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.3,
     marginBottom: scaleDimension(2),
+    flexWrap: "wrap",
   },
   subtitle: {
     color: "#6b7280",
     fontWeight: "500",
+    flexWrap: "wrap", // Allow multi-line subtitle
   },
   loadingContainer: {
     padding: scaleDimension(20),
@@ -379,16 +350,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   employeeDetails: {
-    flex: 1,
-    minWidth: 0, // Prevents text overflow
+    flex: 1, // Allow wrapping
   },
   employeeName: {
     fontWeight: "700",
     color: "#111827",
     marginBottom: scaleDimension(2),
+    flexWrap: "wrap",
   },
   employeeId: {
     color: "#6b7280",
+    flexWrap: "wrap",
   },
   toggleContainer: {
     marginLeft: scaleDimension(12),

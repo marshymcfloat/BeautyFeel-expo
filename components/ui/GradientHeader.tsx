@@ -14,7 +14,7 @@ interface GradientHeaderProps {
   subtitle?: string;
   icon?: ReactNode;
   rightElement?: ReactNode;
-  colors?: string[];
+  colors?: readonly [string, string, ...string[]];
 }
 
 export function GradientHeader({
@@ -27,37 +27,32 @@ export function GradientHeader({
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[...colors]}
+        colors={colors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.gradient}
       >
         <View style={styles.content}>
-          <View style={styles.leftSection}>
+          <View style={styles.mainInfoRow}>
             {icon && <View style={styles.iconContainer}>{icon}</View>}
             <View style={styles.textContainer}>
-              <ResponsiveText
-                variant="3xl"
-                style={styles.title}
-                numberOfLines={2}
-              >
+              <ResponsiveText variant="3xl" style={styles.title}>
                 {title}
               </ResponsiveText>
               {subtitle && (
-                <ResponsiveText
-                  variant="sm"
-                  style={styles.subtitle}
-                  numberOfLines={1}
-                >
+                <ResponsiveText variant="sm" style={styles.subtitle}>
                   {subtitle}
                 </ResponsiveText>
               )}
             </View>
           </View>
+
+          {/* Action buttons moved to their own row below the title */}
           {rightElement && (
-            <View style={styles.rightSection}>{rightElement}</View>
+            <View style={styles.actionsRow}>{rightElement}</View>
           )}
         </View>
+
         {/* Decorative circles */}
         <View style={styles.decorativeCircle1} />
         <View style={styles.decorativeCircle2} />
@@ -81,18 +76,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   content: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    // CHANGE 1: Stack vertically instead of horizontally
+    flexDirection: "column",
+    gap: scaleDimension(16), // Add space between Title and Buttons
     width: "100%",
     zIndex: 1,
   },
-  leftSection: {
+  mainInfoRow: {
+    // This row contains Icon + Title
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    marginRight: scaleDimension(12),
-    minWidth: 0, // Prevents text overflow
+    width: "100%",
   },
   iconContainer: {
     width: scaleDimension(56),
@@ -106,21 +100,29 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
-    minWidth: 0, // Prevents text overflow
   },
   title: {
     fontWeight: "800",
     color: "white",
     letterSpacing: -0.5,
+    flexWrap: "wrap",
   },
   subtitle: {
     color: "rgba(255, 255, 255, 0.85)",
     marginTop: scaleDimension(4),
     fontWeight: "500",
+    flexWrap: "wrap",
   },
-  rightSection: {
+  actionsRow: {
+    // CHANGE 2: Buttons get their own row, aligned to the right
+    flexDirection: "row",
+    justifyContent: "flex-end",
     alignItems: "center",
-    justifyContent: "center",
+    width: "100%",
+    // Optional: Add a subtle top border or padding if you want separation
+    // paddingTop: scaleDimension(12),
+    // borderTopWidth: 1,
+    // borderTopColor: "rgba(255,255,255,0.1)"
   },
   decorativeCircle1: {
     position: "absolute",

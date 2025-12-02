@@ -298,19 +298,11 @@ export default function BookingsScreen() {
           ) : (
             <>
               <View style={styles.bookingsHeader}>
-                <ResponsiveText
-                  variant="xl"
-                  style={styles.bookingsCount}
-                  numberOfLines={1}
-                >
+                <ResponsiveText variant="xl" style={styles.bookingsCount}>
                   {bookings.length} appointment
                   {bookings.length !== 1 ? "s" : ""}
                 </ResponsiveText>
-                <ResponsiveText
-                  variant="sm"
-                  style={styles.bookingsDate}
-                  numberOfLines={1}
-                >
+                <ResponsiveText variant="sm" style={styles.bookingsDate}>
                   {displayDate}
                 </ResponsiveText>
               </View>
@@ -417,10 +409,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: scaleDimension(6),
     letterSpacing: -0.3,
+    flexWrap: "wrap", // Added wrap
   },
   bookingsDate: {
     color: COLORS.primary,
     fontWeight: "600",
+    flexWrap: "wrap", // Added wrap
   },
   headerButtons: {
     flexDirection: "row",

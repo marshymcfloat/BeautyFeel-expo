@@ -62,31 +62,29 @@ export function responsive<T>(values: {
   );
 }
 
+// ⬇️ CHANGED: Helper to calculate scale
+const getScale = () => {
+  const scale = SCREEN_WIDTH / BREAKPOINTS.sm;
+  // Tweaked:
+  // Min: 0.85 (Small phones get 85% size to prevent overflow)
+  // Max: 1.25 (Large phones/Tablets get up to 125% size)
+  // Your previous 1.05 was too strict for large devices
+  return Math.max(0.85, Math.min(scale, 1.25));
+};
+
 /**
  * Scale font size based on screen width and pixel ratio
- * More conservative scaling - keeps text readable without being too large
  */
 export function scaleFont(size: number): number {
-  const scale = SCREEN_WIDTH / BREAKPOINTS.sm;
-  // More conservative scaling: scale down for small screens, minimal scale up for larger
-  // For smaller screens (< 375px), scale down (min 0.85)
-  // For larger screens, minimal scale up (max 1.05x) to prevent text from being too large
-  const clampedScale = Math.max(0.85, Math.min(scale, 1.05));
-  const newSize = size * clampedScale;
+  const newSize = size * getScale();
   return Math.round(PixelRatio.roundToNearestPixel(newSize));
 }
 
 /**
  * Scale dimension (width/height/padding/margin) based on screen width
- * More conservative scaling for better cross-platform consistency
  */
 export function scaleDimension(size: number): number {
-  const scale = SCREEN_WIDTH / BREAKPOINTS.sm;
-  // More conservative scaling: scale down for small screens, minimal scale up
-  // For smaller screens (< 375px), scale down (min 0.85)
-  // For larger screens, minimal scale up (max 1.05x)
-  const clampedScale = Math.max(0.85, Math.min(scale, 1.05));
-  const newSize = size * clampedScale;
+  const newSize = size * getScale();
   return Math.round(PixelRatio.roundToNearestPixel(newSize));
 }
 

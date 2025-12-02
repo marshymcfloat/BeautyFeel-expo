@@ -4,6 +4,7 @@ import {
   createBookingAction,
   updateBookingAction,
 } from "@/lib/actions/bookingActions";
+import { getActiveDiscount } from "@/lib/actions/discountActions";
 import type { GiftCertificateWithRelations } from "@/lib/actions/giftCertificateActions";
 import type { ServiceSetWithItems } from "@/lib/actions/serviceSetActions";
 import { getServiceSetsForBranch } from "@/lib/actions/serviceSetActions";
@@ -18,7 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { Plus, X } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Resolver, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
@@ -56,6 +57,7 @@ interface SelectedService {
   serviceId: number;
   quantity: number;
   service: Service;
+  originalPrice?: number; // Store original price if discounted
 }
 
 interface SelectedServiceSet {
@@ -157,6 +159,17 @@ export default function BookingFormModal({
   } = form;
 
   const watchedBranch = watch("branch");
+
+  // Fetch active discount
+  const { data: activeDiscountData } = useQuery({
+    queryKey: ["active-discount"],
+    queryFn: getActiveDiscount,
+  });
+
+  const activeDiscount = activeDiscountData?.success
+    ? activeDiscountData.data
+    : null;
+
   const { data: services, isLoading: servicesLoading } = useQuery({
     queryKey: ["services", watchedBranch],
     queryFn: async () => {
@@ -185,6 +198,59 @@ export default function BookingFormModal({
   const serviceSets = serviceSetsData?.success
     ? (serviceSetsData.data as any[])
     : [];
+
+  // Calculate discounted prices for services
+  const discountedServices = useMemo(() => {
+    if (!activeDiscount || !services) return selectedServices;
+
+    const discountServiceIds = new Set(
+      activeDiscount.discount_services?.map((ds) => ds.service_id) || []
+    );
+
+    // Check if discount applies to this branch
+    const branchMatches =
+      !activeDiscount.branch || activeDiscount.branch === watchedBranch;
+
+    // Check if discount is currently active (date range)
+    const now = new Date();
+    const startDate = new Date(activeDiscount.start_date);
+    const endDate = new Date(activeDiscount.end_date);
+    const isDateValid = now >= startDate && now <= endDate;
+
+    if (!branchMatches || !isDateValid) {
+      return selectedServices;
+    }
+
+    return selectedServices.map((selectedService) => {
+      const isEligible = discountServiceIds.has(selectedService.serviceId);
+      if (!isEligible) {
+        return selectedService;
+      }
+
+      const originalPrice = selectedService.service.price;
+      let discountedPrice = originalPrice;
+
+      if (activeDiscount.discount_type === "PERCENTAGE") {
+        const discountAmount =
+          (originalPrice * activeDiscount.discount_value) / 100;
+        discountedPrice = Math.max(0, originalPrice - discountAmount);
+      } else if (activeDiscount.discount_type === "ABSOLUTE") {
+        discountedPrice = Math.max(
+          0,
+          originalPrice - activeDiscount.discount_value
+        );
+      }
+
+      return {
+        ...selectedService,
+        service: {
+          ...selectedService.service,
+          price: discountedPrice,
+        },
+        originalPrice, // Store original for display
+      };
+    });
+  }, [selectedServices, activeDiscount, services, watchedBranch]);
 
   const watchedDate = watch("appointmentDate");
   const watchedTime = watch("appointmentTime");
@@ -307,27 +373,8 @@ export default function BookingFormModal({
     }
   }, [services, watch, isEditMode, selectedServices.length]);
 
-  // Clear selected services and service sets when branch changes
-  // Use a ref to track the previous branch to avoid clearing on initial mount
-  const prevBranchRef = React.useRef<string | undefined>(watchedBranch);
-
-  useEffect(() => {
-    if (isEditMode) return;
-
-    // Clear selected services and service sets when branch changes
-    // This ensures that services from one branch don't persist when switching to another
-    if (
-      prevBranchRef.current !== undefined &&
-      prevBranchRef.current !== watchedBranch
-    ) {
-      setSelectedServices([]);
-      setSelectedServiceSets([]);
-      setValue("services", [], { shouldValidate: true });
-      setValue("serviceSets", [], { shouldValidate: true });
-    }
-
-    prevBranchRef.current = watchedBranch;
-  }, [watchedBranch, isEditMode, setValue]);
+  // Note: Selected services are preserved when switching branches
+  // This allows users to filter services by branch while keeping their selections
 
   // Pre-fill services and service sets from gift certificate
   useEffect(() => {
@@ -565,14 +612,17 @@ export default function BookingFormModal({
       }
     }
 
+    // Use discounted services if discount is active
+    const servicesToSubmit = discountedServices.map((s) => ({
+      serviceId: s.serviceId,
+      quantity: s.quantity,
+    }));
+
     createBooking({
       ...data,
       appointmentDate: dateStr,
       appointmentTime: timeStr,
-      services: selectedServices.map((s) => ({
-        serviceId: s.serviceId,
-        quantity: s.quantity,
-      })),
+      services: servicesToSubmit,
       serviceSets: selectedServiceSets.map((s) => ({
         serviceSetId: s.serviceSetId,
         quantity: s.quantity,
@@ -764,11 +814,7 @@ export default function BookingFormModal({
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.header}>
-                <ResponsiveText
-                  variant="2xl"
-                  style={styles.headerTitle}
-                  numberOfLines={1}
-                >
+                <ResponsiveText variant="2xl" style={styles.headerTitle}>
                   {isEditMode ? "Edit Booking" : "New Booking"}
                 </ResponsiveText>
                 <Pressable
@@ -786,11 +832,7 @@ export default function BookingFormModal({
 
               <View style={styles.form}>
                 <View style={styles.formSection}>
-                  <ResponsiveText
-                    variant="sm"
-                    style={styles.label}
-                    numberOfLines={1}
-                  >
+                  <ResponsiveText variant="sm" style={styles.label}>
                     Customer *
                   </ResponsiveText>
                   {isEditMode ? (
@@ -820,11 +862,7 @@ export default function BookingFormModal({
 
                 {!isEditMode && (
                   <View style={styles.formSection}>
-                    <ResponsiveText
-                      variant="sm"
-                      style={styles.label}
-                      numberOfLines={1}
-                    >
+                    <ResponsiveText variant="sm" style={styles.label}>
                       Customer Email
                     </ResponsiveText>
                     <TextInput
@@ -853,11 +891,7 @@ export default function BookingFormModal({
                 )}
 
                 <View style={styles.formSection}>
-                  <ResponsiveText
-                    variant="sm"
-                    style={styles.label}
-                    numberOfLines={1}
-                  >
+                  <ResponsiveText variant="sm" style={styles.label}>
                     Appointment Date *
                   </ResponsiveText>
                   <DatePicker
@@ -869,11 +903,7 @@ export default function BookingFormModal({
                 </View>
 
                 <View style={styles.formSection}>
-                  <ResponsiveText
-                    variant="sm"
-                    style={styles.label}
-                    numberOfLines={1}
-                  >
+                  <ResponsiveText variant="sm" style={styles.label}>
                     Appointment Time *
                   </ResponsiveText>
                   <TimePicker
@@ -884,11 +914,7 @@ export default function BookingFormModal({
                 </View>
 
                 <View style={styles.formSection}>
-                  <ResponsiveText
-                    variant="sm"
-                    style={styles.label}
-                    numberOfLines={1}
-                  >
+                  <ResponsiveText variant="sm" style={styles.label}>
                     Branch *
                   </ResponsiveText>
                   <View style={styles.branchContainer}>
@@ -912,7 +938,7 @@ export default function BookingFormModal({
                                 ? styles.branchButtonTextSelected
                                 : styles.branchButtonTextUnselected,
                             ]}
-                            numberOfLines={1}
+                            // Removed numberOfLines to allow wrapping
                           >
                             {branch}
                           </ResponsiveText>
@@ -933,11 +959,7 @@ export default function BookingFormModal({
 
                 <View style={styles.formSection}>
                   <View style={styles.servicesHeader}>
-                    <ResponsiveText
-                      variant="sm"
-                      style={styles.label}
-                      numberOfLines={1}
-                    >
+                    <ResponsiveText variant="sm" style={styles.label}>
                       Selected Items *
                     </ResponsiveText>
                     {!isEditMode && (
@@ -953,7 +975,6 @@ export default function BookingFormModal({
                           <ResponsiveText
                             variant="sm"
                             style={styles.addButtonSmallText}
-                            numberOfLines={1}
                           >
                             Service
                           </ResponsiveText>
@@ -969,7 +990,6 @@ export default function BookingFormModal({
                           <ResponsiveText
                             variant="sm"
                             style={styles.addButtonSmallText}
-                            numberOfLines={1}
                           >
                             Set
                           </ResponsiveText>
@@ -1004,13 +1024,14 @@ export default function BookingFormModal({
                     </View>
                   ) : (
                     <SelectedItemsList
-                      services={selectedServices}
+                      services={discountedServices}
                       serviceSets={selectedServiceSets}
                       onRemoveService={removeService}
                       onUpdateServiceQuantity={updateQuantity}
                       onRemoveServiceSet={removeServiceSet}
                       onUpdateServiceSetQuantity={updateServiceSetQuantity}
                       grandDiscount={watch("grandDiscount") || 0}
+                      activeDiscount={activeDiscount}
                     />
                   )}
                 </View>
@@ -1038,7 +1059,6 @@ export default function BookingFormModal({
                       <ResponsiveText
                         variant="md"
                         style={styles.cancelButtonText}
-                        numberOfLines={1}
                       >
                         Cancel
                       </ResponsiveText>
@@ -1062,7 +1082,6 @@ export default function BookingFormModal({
                           <ResponsiveText
                             variant="md"
                             style={styles.updateButtonText}
-                            numberOfLines={1}
                           >
                             Update Booking
                           </ResponsiveText>
@@ -1090,7 +1109,6 @@ export default function BookingFormModal({
                         <ResponsiveText
                           variant="md"
                           style={styles.submitButtonText}
-                          numberOfLines={1}
                         >
                           Create Booking
                         </ResponsiveText>
@@ -1144,7 +1162,6 @@ export default function BookingFormModal({
                         servicePickerType === "services" &&
                           styles.servicePickerToggleTextActive,
                       ]}
-                      numberOfLines={1}
                     >
                       Services
                     </ResponsiveText>
@@ -1164,7 +1181,6 @@ export default function BookingFormModal({
                         servicePickerType === "serviceSets" &&
                           styles.servicePickerToggleTextActive,
                       ]}
-                      numberOfLines={1}
                     >
                       Service Sets
                     </ResponsiveText>
@@ -1197,7 +1213,6 @@ export default function BookingFormModal({
                             <ResponsiveText
                               variant="sm"
                               style={styles.serviceOptionDetails}
-                              numberOfLines={1}
                             >
                               {`₱${service.price} • ${service.duration_minutes} min`}
                             </ResponsiveText>
@@ -1243,7 +1258,6 @@ export default function BookingFormModal({
                               <ResponsiveText
                                 variant="sm"
                                 style={styles.serviceOptionDetails}
-                                numberOfLines={1}
                               >
                                 {`₱${
                                   serviceSet.price
@@ -1325,6 +1339,8 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontWeight: "bold",
     color: "#111827",
+    flex: 1,
+    flexWrap: "wrap",
   },
   closeButton: {
     padding: scaleDimension(8),
@@ -1340,6 +1356,7 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontWeight: "600",
     marginBottom: scaleDimension(8),
+    flexWrap: "wrap",
   },
   helperText: {
     color: "#9ca3af",
@@ -1386,6 +1403,7 @@ const styles = StyleSheet.create({
   branchButtonText: {
     fontWeight: "500",
     textAlign: "center",
+    flexWrap: "wrap",
   },
   branchButtonTextSelected: {
     color: "white",
@@ -1456,7 +1474,7 @@ const styles = StyleSheet.create({
   servicesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "center", // Changed to center for button alignment
     marginBottom: scaleDimension(12),
   },
   addButtonsContainer: {
@@ -1477,6 +1495,7 @@ const styles = StyleSheet.create({
   addButtonSmallText: {
     color: "#ec4899",
     fontWeight: "600",
+    flexWrap: "wrap",
   },
   servicePickerToggle: {
     flexDirection: "row",
@@ -1499,6 +1518,7 @@ const styles = StyleSheet.create({
   servicePickerToggleText: {
     fontWeight: "500",
     color: "#6b7280",
+    flexWrap: "wrap",
   },
   servicePickerToggleTextActive: {
     color: "white",
@@ -1508,6 +1528,7 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     marginTop: scaleDimension(4),
     fontStyle: "italic",
+    flexWrap: "wrap",
   },
   inputDisabled: {
     backgroundColor: "#f3f4f6",
@@ -1515,6 +1536,7 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: "#6b7280",
+    flexWrap: "wrap",
   },
   submitButton: {
     marginTop: scaleDimension(16),
@@ -1528,6 +1550,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: "white",
     fontWeight: "600",
+    flexWrap: "wrap",
   },
   editActions: {
     flexDirection: "row",
@@ -1552,6 +1575,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: "#374151",
     fontWeight: "600",
+    flexWrap: "wrap",
   },
   cancelButtonTextDisabled: {
     color: "#9ca3af",
@@ -1567,6 +1591,7 @@ const styles = StyleSheet.create({
   updateButtonText: {
     color: "white",
     fontWeight: "600",
+    flexWrap: "wrap",
   },
   servicePickerOverlay: {
     position: "absolute",
@@ -1618,8 +1643,8 @@ const styles = StyleSheet.create({
   servicePickerTitle: {
     fontWeight: "bold",
     color: "#111827",
-    flex: 1,
-    minWidth: 0, // Prevents text overflow
+    flex: 1, // Allow text to grow
+    flexWrap: "wrap", // Allow text to wrap
   },
   serviceOption: {
     padding: scaleDimension(16),
@@ -1629,9 +1654,11 @@ const styles = StyleSheet.create({
   serviceOptionTitle: {
     color: "#111827",
     fontWeight: "600",
+    flexWrap: "wrap",
   },
   serviceOptionDetails: {
     color: "#6b7280",
     marginTop: scaleDimension(4),
+    flexWrap: "wrap",
   },
 });

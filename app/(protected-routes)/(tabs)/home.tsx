@@ -12,14 +12,10 @@ import { Sparkles } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
-// Lazy load heavy components using dynamic imports
-
-// Loading fallback component with skeleton
 function ComponentLoader() {
   return <LoadingState variant="skeleton" />;
 }
 
-// Lazy component wrapper
 function LazyComponent({
   loadComponent,
   fallback,
@@ -59,7 +55,7 @@ export default function HomeScreen() {
   const isOwner = hasRole("owner");
 
   if (loading) {
-    return null; // or a loading spinner
+    return null;
   }
 
   const getGreeting = () => {
@@ -85,7 +81,6 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Welcome Header */}
           <View
             style={[
               styles.headerSection,
@@ -102,31 +97,22 @@ export default function HomeScreen() {
                 <View style={styles.headerIconContainer}>
                   <Sparkles size={iconSize} color="white" />
                 </View>
+                {/* Removed minWidth constraint and numberOfLines */}
                 <View style={styles.headerTextContainer}>
-                  <ResponsiveText
-                    variant="sm"
-                    style={styles.greetingText}
-                    numberOfLines={1}
-                  >
+                  <ResponsiveText variant="sm" style={styles.greetingText}>
                     {getGreeting()}
                   </ResponsiveText>
-                  <ResponsiveText
-                    variant="2xl"
-                    style={styles.welcomeText}
-                    numberOfLines={2}
-                  >
+                  <ResponsiveText variant="2xl" style={styles.welcomeText}>
                     {isOwner ? "Welcome back, Owner" : "Ready to shine today?"}
                   </ResponsiveText>
                 </View>
               </View>
-              {/* Decorative circles */}
               <View style={styles.decorativeCircle1} />
               <View style={styles.decorativeCircle2} />
             </LinearGradient>
           </View>
 
           {isOwner ? (
-            // Owner view: Payslip requests, permissions, and attendance manager
             <>
               <LazyComponent
                 loadComponent={() =>
@@ -148,7 +134,6 @@ export default function HomeScreen() {
               />
             </>
           ) : (
-            // Employee view: Stats cards, request payslip button, and attendance calendar
             <>
               <LazyComponent
                 loadComponent={() =>
@@ -204,7 +189,7 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "center", // Kept centered, works best for header
     zIndex: 1,
   },
   headerIconContainer: {
@@ -219,7 +204,8 @@ const styles = StyleSheet.create({
   },
   headerTextContainer: {
     flex: 1,
-    minWidth: 0, // Prevents text overflow
+    // Removed minWidth: 0 to allow wrapping logic to work better if needed,
+    // though flex:1 usually handles it.
   },
   greetingText: {
     color: "rgba(255, 255, 255, 0.9)",
@@ -227,11 +213,13 @@ const styles = StyleSheet.create({
     marginBottom: scaleDimension(4),
     textTransform: "uppercase",
     letterSpacing: 1,
+    flexWrap: "wrap", // Added wrap
   },
   welcomeText: {
     color: "white",
     fontWeight: "800",
     letterSpacing: -0.5,
+    flexWrap: "wrap", // Added wrap
   },
   decorativeCircle1: {
     position: "absolute",

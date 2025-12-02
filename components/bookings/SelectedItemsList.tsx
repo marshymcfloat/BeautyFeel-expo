@@ -1,9 +1,10 @@
 import type { Database } from "@/database.types";
+import type { DiscountWithServices } from "@/lib/actions/discountActions";
 import type { ServiceSetWithItems } from "@/lib/actions/serviceSetActions";
 import { COLORS } from "@/lib/utils/constants";
 import { formatCurrency } from "@/lib/utils/currency";
 import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
-import { Minus, Plus } from "lucide-react-native";
+import { Minus, Plus, Tag } from "lucide-react-native";
 import React from "react";
 import {
   Platform,
@@ -36,6 +37,7 @@ interface SelectedItemsListProps {
   onRemoveServiceSet: (serviceSetId: number) => void;
   onUpdateServiceSetQuantity: (serviceSetId: number, delta: number) => void;
   grandDiscount?: number;
+  activeDiscount?: DiscountWithServices | null;
 }
 
 export function SelectedItemsList({
@@ -46,6 +48,7 @@ export function SelectedItemsList({
   onRemoveServiceSet,
   onUpdateServiceSetQuantity,
   grandDiscount = 0,
+  activeDiscount,
 }: SelectedItemsListProps) {
   const servicesTotal = services.reduce(
     (sum, s) => sum + (s.service.price || 0) * s.quantity,
@@ -84,17 +87,55 @@ export function SelectedItemsList({
             {services.map((selectedService) => {
               const itemPrice =
                 (selectedService.service.price || 0) * selectedService.quantity;
+              
+              // Check if this service has a discount applied
+              const hasDiscount =
+                activeDiscount &&
+                activeDiscount.discount_services?.some(
+                  (ds) => ds.service_id === selectedService.serviceId
+                ) &&
+                (!activeDiscount.branch ||
+                  activeDiscount.branch === selectedService.service.branch);
+              
+              const originalPrice = (selectedService as any).originalPrice;
+              const isDiscounted = originalPrice && originalPrice > selectedService.service.price;
+              
               return (
                 <View key={selectedService.serviceId} style={styles.item}>
                   <View style={styles.itemHeader}>
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemTitle} numberOfLines={1}>
-                        {selectedService.service.title}
-                      </Text>
-                      <Text style={styles.itemSubtitle}>
-                        {formatCurrency(selectedService.service.price)} ×{" "}
-                        {selectedService.quantity}
-                      </Text>
+                      <View style={styles.titleRow}>
+                        <Text style={styles.itemTitle} numberOfLines={1}>
+                          {selectedService.service.title}
+                        </Text>
+                        {isDiscounted && (
+                          <View style={styles.discountBadge}>
+                            <Tag size={10} color="#16a34a" />
+                            <Text style={styles.discountBadgeText}>
+                              {activeDiscount?.discount_type === "PERCENTAGE"
+                                ? `${activeDiscount.discount_value}%`
+                                : `-${formatCurrency(activeDiscount?.discount_value || 0)}`}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.priceRow}>
+                        {isDiscounted && (
+                          <Text style={styles.originalPrice}>
+                            {formatCurrency(originalPrice)} ×{" "}
+                            {selectedService.quantity}
+                          </Text>
+                        )}
+                        <Text
+                          style={[
+                            styles.itemSubtitle,
+                            isDiscounted && styles.discountedPrice,
+                          ]}
+                        >
+                          {formatCurrency(selectedService.service.price)} ×{" "}
+                          {selectedService.quantity}
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.quantityControls}>
                       <Pressable
@@ -348,11 +389,49 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(8),
+    flexWrap: "wrap",
+  },
   itemTitle: {
     fontSize: scaleFont(15),
     fontWeight: "600",
     color: COLORS.text,
     flex: 1,
+    minWidth: 0,
+  },
+  discountBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(4),
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: scaleDimension(6),
+    paddingVertical: scaleDimension(2),
+    borderRadius: scaleDimension(4),
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  discountBadgeText: {
+    color: "#16a34a",
+    fontSize: scaleFont(10),
+    fontWeight: "600",
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(6),
+    marginTop: scaleDimension(2),
+  },
+  originalPrice: {
+    color: COLORS.textSecondary,
+    fontSize: scaleFont(12),
+    textDecorationLine: "line-through",
+  },
+  discountedPrice: {
+    color: "#16a34a",
+    fontWeight: "600",
   },
   serviceSetBadge: {
     backgroundColor: "#fdf2f8",

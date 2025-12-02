@@ -1,12 +1,9 @@
-import type {
-  Database,
-  Tables,
-  TablesInsert,
-  TablesUpdate,
-} from "../../database.types";
+import type { Database } from "../../database.types";
 import { supabase } from "../utils/supabase";
 
-type Service = Tables<"public", "service">;
+type Service = Database["public"]["Tables"]["service"]["Row"];
+type ServiceInsert = Database["public"]["Tables"]["service"]["Insert"];
+type ServiceUpdate = Database["public"]["Tables"]["service"]["Update"];
 type Branch = Database["public"]["Enums"]["branch"];
 
 /**
@@ -30,7 +27,7 @@ export async function getAllServicesAction() {
 
     return {
       success: true,
-      data: (data || []) as Service["Row"][],
+      data: (data || []) as Service[],
     };
   } catch (error) {
     console.error("Unexpected error fetching services:", error);
@@ -62,7 +59,7 @@ export async function getServicesByBranchAction(branch: Branch) {
 
     return {
       success: true,
-      data: (data || []) as Service["Row"][],
+      data: (data || []) as Service[],
     };
   } catch (error) {
     console.error("Unexpected error fetching services:", error);
@@ -86,7 +83,7 @@ export async function createServiceAction(data: {
   is_active?: boolean;
 }) {
   try {
-    const insertData: TablesInsert<"public", "service"> = {
+    const insertData: ServiceInsert = {
       title: data.title,
       description: data.description || null,
       price: data.price,
@@ -98,6 +95,7 @@ export async function createServiceAction(data: {
 
     const { data: service, error } = await supabase
       .from("service")
+      // @ts-ignore - Supabase proxy typing issue
       .insert(insertData)
       .select()
       .single();
@@ -112,7 +110,7 @@ export async function createServiceAction(data: {
 
     return {
       success: true,
-      data: service as Service["Row"],
+      data: service as Service,
     };
   } catch (error) {
     console.error("Unexpected error creating service:", error);
@@ -139,7 +137,7 @@ export async function updateServiceAction(
   },
 ) {
   try {
-    const updateData: TablesUpdate<"public", "service"> = {};
+    const updateData: ServiceUpdate = {};
 
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) {
@@ -156,10 +154,11 @@ export async function updateServiceAction(
 
     const { data: service, error } = await supabase
       .from("service")
+      // @ts-ignore - Supabase proxy typing issue
       .update(updateData)
       .eq("id", serviceId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error updating service:", error);
@@ -169,9 +168,16 @@ export async function updateServiceAction(
       };
     }
 
+    if (!service) {
+      return {
+        success: false,
+        error: "Service not found",
+      };
+    }
+
     return {
       success: true,
-      data: service as Service["Row"],
+      data: service as Service,
     };
   } catch (error) {
     console.error("Unexpected error updating service:", error);
@@ -189,13 +195,14 @@ export async function softDeleteServiceAction(serviceId: number) {
   try {
     const { data: service, error } = await supabase
       .from("service")
+      // @ts-ignore - Supabase proxy typing issue
       .update({
         is_active: false,
         updated_at: new Date().toISOString(),
       })
       .eq("id", serviceId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error soft deleting service:", error);
@@ -205,9 +212,16 @@ export async function softDeleteServiceAction(serviceId: number) {
       };
     }
 
+    if (!service) {
+      return {
+        success: false,
+        error: "Service not found",
+      };
+    }
+
     return {
       success: true,
-      data: service as Service["Row"],
+      data: service as Service,
     };
   } catch (error) {
     console.error("Unexpected error soft deleting service:", error);
@@ -225,13 +239,14 @@ export async function restoreServiceAction(serviceId: number) {
   try {
     const { data: service, error } = await supabase
       .from("service")
+      // @ts-ignore - Supabase proxy typing issue
       .update({
         is_active: true,
         updated_at: new Date().toISOString(),
       })
       .eq("id", serviceId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error restoring service:", error);
@@ -241,9 +256,16 @@ export async function restoreServiceAction(serviceId: number) {
       };
     }
 
+    if (!service) {
+      return {
+        success: false,
+        error: "Service not found",
+      };
+    }
+
     return {
       success: true,
-      data: service as Service["Row"],
+      data: service as Service,
     };
   } catch (error) {
     console.error("Unexpected error restoring service:", error);

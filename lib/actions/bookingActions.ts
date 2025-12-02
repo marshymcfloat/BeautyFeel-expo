@@ -8,6 +8,7 @@ import {
   updateBookingSchema,
 } from "../zod-schemas/booking";
 import { createCustomerAction } from "./customerActions";
+import { getActiveDiscount } from "./discountActions";
 
 type Booking = Tables<"public", "booking">;
 type Service = Tables<"public", "service">;
@@ -149,14 +150,60 @@ export async function createBookingAction(data: CreateBookingSchema) {
       }
     }
 
-    // Calculate totals
+    // Fetch active discount and apply to eligible services
+    const activeDiscountResult = await getActiveDiscount();
+    const activeDiscount = activeDiscountResult.success
+      ? activeDiscountResult.data
+      : null;
+
+    // Check if discount applies to this branch and is currently valid
+    let discountServiceIds = new Set<number>();
+    let discountApplies = false;
+    if (activeDiscount) {
+      const branchMatches =
+        !activeDiscount.branch || activeDiscount.branch === validated.branch;
+      const now = new Date();
+      const startDate = new Date(activeDiscount.start_date);
+      const endDate = new Date(activeDiscount.end_date);
+      const isDateValid = now >= startDate && now <= endDate;
+
+      if (branchMatches && isDateValid) {
+        discountApplies = true;
+        discountServiceIds = new Set(
+          activeDiscount.discount_services?.map((ds) => ds.service_id) || []
+        );
+      }
+    }
+
+    // Calculate totals and store discounted prices for service_bookings
     let grandTotal = 0;
     let totalDuration = 0;
+    // Map to store discounted prices for each service (serviceId -> discountedPrice)
+    const discountedPricesMap = new Map<number, number>();
 
-    // Add totals from individual services
+    // Add totals from individual services (with discount applied if applicable)
     for (const bookingService of validated.services || []) {
       const service = servicesMap.get(bookingService.serviceId)!;
-      const serviceTotal = service.price * bookingService.quantity;
+      let servicePrice = service.price;
+
+      // Apply discount if service is eligible
+      if (discountApplies && discountServiceIds.has(bookingService.serviceId)) {
+        if (activeDiscount!.discount_type === "PERCENTAGE") {
+          const discountAmount =
+            (servicePrice * activeDiscount!.discount_value) / 100;
+          servicePrice = Math.max(0, servicePrice - discountAmount);
+        } else if (activeDiscount!.discount_type === "ABSOLUTE") {
+          servicePrice = Math.max(
+            0,
+            servicePrice - activeDiscount!.discount_value
+          );
+        }
+      }
+
+      // Store the discounted price (or original if no discount) for this service
+      discountedPricesMap.set(bookingService.serviceId, servicePrice);
+
+      const serviceTotal = servicePrice * bookingService.quantity;
       grandTotal += serviceTotal;
       totalDuration += service.duration_minutes * bookingService.quantity;
     }
@@ -390,6 +437,8 @@ export async function createBookingAction(data: CreateBookingSchema) {
     // Create service instances for individual services
     for (const bookingService of validated.services || []) {
       const service = servicesMap.get(bookingService.serviceId)!;
+      // Use discounted price if available, otherwise use original price
+      const priceToUse = discountedPricesMap.get(bookingService.serviceId) ?? service.price;
 
       // Create one instance per quantity
       for (let i = 0; i < bookingService.quantity; i++) {
@@ -397,7 +446,7 @@ export async function createBookingAction(data: CreateBookingSchema) {
           booking_transaction_id: booking.id,
           service_id: service.id,
           quantity: 1, // Each instance has quantity 1
-          price_at_booking: service.price,
+          price_at_booking: priceToUse, // Use discounted price for commission calculation
           sequence_order: sequenceOrder++,
           status: "UNCLAIMED", // New instances start as unclaimed
         });

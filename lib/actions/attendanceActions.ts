@@ -1,4 +1,5 @@
 import { supabase } from "../utils/supabase";
+import { getPhilippineDate } from "../utils/dateTime";
 
 export interface AttendanceRecord {
   id: string;
@@ -40,8 +41,8 @@ export async function getAllEmployeesForAttendance() {
       };
     }
 
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split("T")[0];
+    // Get today's date in YYYY-MM-DD format using Philippine time (UTC+8)
+    const today = getPhilippineDate();
 
     // Fetch today's attendance for all employees
     const { data: attendance, error: attendanceError } = await supabase
@@ -134,8 +135,8 @@ export async function markAttendanceAction(
       };
     }
 
-    // Use today's date if not provided
-    const date = attendanceDate || new Date().toISOString().split("T")[0];
+    // Use today's date in Philippine time if not provided
+    const date = attendanceDate || getPhilippineDate();
 
     // Call the database function to mark attendance and update salary
     const { data, error } = await supabase.rpc(

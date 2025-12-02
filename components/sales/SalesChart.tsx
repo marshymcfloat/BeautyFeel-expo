@@ -1,19 +1,43 @@
 import type { SalesData } from "@/lib/actions/salesActions";
 import { formatCurrencyCompact } from "@/lib/utils/currency";
-import React, { useMemo } from "react";
-import { Dimensions, Platform, StyleSheet, Text, View } from "react-native";
+import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
+import React, { useMemo, useState } from "react";
+import {
+  LayoutChangeEvent,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Svg, {
   Circle,
+  Defs,
   G,
   Line,
-  Polyline,
+  LinearGradient,
+  Path,
+  Rect,
+  Stop,
   Text as SvgText,
 } from "react-native-svg";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CHART_WIDTH = SCREEN_WIDTH - 48; // Account for padding
-const CHART_HEIGHT = 200;
-const PADDING = 40;
+const CHART_HEIGHT = scaleDimension(220);
+const PADDING_TOP = scaleDimension(40);
+const PADDING_BOTTOM = scaleDimension(30);
+const PADDING_LEFT = scaleDimension(16);
+const PADDING_RIGHT = scaleDimension(16);
+
+// Helper for smooth curve
+const bezierCommand = (point: any, i: number, a: any) => {
+  const { x: xEnd, y: yEnd } = point;
+  const { x: xStart, y: yStart } = a[i - 1] || point;
+  const smoothing = 0.2;
+  const cpsX = xStart + (xEnd - xStart) * smoothing;
+  const cpsY = yStart;
+  const cpeX = xEnd - (xEnd - xStart) * smoothing;
+  const cpeY = yEnd;
+  return `C ${cpsX},${cpsY} ${cpeX},${cpeY} ${xEnd},${yEnd}`;
+};
 
 interface SalesChartProps {
   data: SalesData[];
@@ -21,31 +45,55 @@ interface SalesChartProps {
 }
 
 export default function SalesChart({ data, timeSpan }: SalesChartProps) {
-  // Memoize expensive calculations
-  const chartCalculations = useMemo(() => {
-    if (!data || data.length === 0) return null;
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
-    const chartWidth = CHART_WIDTH - PADDING * 2;
-    const chartHeight = CHART_HEIGHT - PADDING * 2;
+  const onLayout = (event: LayoutChangeEvent) => {
+    setContainerWidth(event.nativeEvent.layout.width);
+  };
+
+  const chartCalculations = useMemo(() => {
+    if (!data || data.length === 0 || containerWidth === 0) return null;
+
+    // Ensure we draw strictly inside the container
+    const chartWidth = containerWidth - PADDING_LEFT - PADDING_RIGHT;
+    const chartHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
     // Find max sales value for scaling
-    const maxSales = Math.max(...data.map((d) => d.sales), 1);
-    const minSales = Math.min(...data.map((d) => d.sales), 0);
+    let maxSales = Math.max(...data.map((d) => d.sales), 1);
+    const minSales = 0; // Always start from 0 for better context
 
-    // Calculate points for the line
+    // Add 10% buffer to top so the line doesn't hit the ceiling
+    maxSales = maxSales * 1.1;
+
+    // Calculate points
     const points = data.map((item, index) => {
       const divisor = data.length > 1 ? data.length - 1 : 1;
-      const x = (index / divisor) * chartWidth + PADDING;
+      const x = (index / divisor) * chartWidth + PADDING_LEFT;
       const salesRange = maxSales - minSales || 1;
       const y =
-        chartHeight -
-        ((item.sales - minSales) / salesRange) * chartHeight +
-        PADDING;
+        CHART_HEIGHT -
+        PADDING_BOTTOM -
+        ((item.sales - minSales) / salesRange) * chartHeight;
       return { x, y, sales: item.sales, date: item.date };
     });
 
-    return { points, maxSales, minSales, chartWidth, chartHeight };
-  }, [data]);
+    // Generate Path for smooth line
+    const d = points.reduce(
+      (acc, point, i, a) =>
+        i === 0
+          ? `M ${point.x},${point.y}`
+          : `${acc} ${bezierCommand(point, i, a)}`,
+      ""
+    );
+
+    // Generate Path for Gradient Area
+    const dArea = `${d} L ${points[points.length - 1].x},${
+      CHART_HEIGHT - PADDING_BOTTOM
+    } L ${points[0].x},${CHART_HEIGHT - PADDING_BOTTOM} Z`;
+
+    return { points, maxSales, minSales, chartHeight, d, dArea };
+  }, [data, containerWidth]);
 
   if (!data || data.length === 0) {
     return (
@@ -58,144 +106,156 @@ export default function SalesChart({ data, timeSpan }: SalesChartProps) {
     );
   }
 
-  if (!chartCalculations) return null;
-
-  const { points, maxSales, minSales, chartWidth, chartHeight } =
-    chartCalculations;
-
-  // Format date labels based on time span
+  // Format date labels
   const formatDateLabel = (dateStr: string) => {
-    if (timeSpan === "day") {
-      // Show hour
+    if (timeSpan === "day")
       return dateStr.split(" ")[1]?.substring(0, 5) || dateStr;
-    } else if (timeSpan === "week" || timeSpan === "month") {
-      // Show day/month
+    if (timeSpan === "week" || timeSpan === "month") {
       const parts = dateStr.split("-");
-      return `${parts[2]}/${parts[1]}`;
-    } else {
-      // Show month/year (for "all" time span, dateStr is YYYY-MM format)
-      const parts = dateStr.split("-");
-      if (parts.length >= 2) {
-        const month = parts[1];
-        const year = parts[0]?.substring(2) || "";
-        return `${month}/${year}`;
-      }
-      return dateStr;
+      return `${parts[1]}/${parts[2]}`;
     }
+    const parts = dateStr.split("-");
+    if (parts.length >= 2) return `${parts[1]}/${parts[0]?.substring(2)}`;
+    return dateStr;
   };
 
-  // Generate Y-axis labels
-  const yAxisLabels = [];
-  const numLabels = 5;
-  for (let i = 0; i <= numLabels; i++) {
-    const value = minSales + ((maxSales - minSales) * i) / numLabels;
-    yAxisLabels.push(value);
+  const handleTouch = (index: number) => {
+    setSelectedIndex(index === selectedIndex ? null : index);
+  };
+
+  // If chart isn't ready (width not measured), render a placeholder
+  if (!chartCalculations) {
+    return (
+      <View style={styles.container} onLayout={onLayout}>
+        {/* Invisible spacer to reserve height */}
+        <View style={{ height: CHART_HEIGHT }} />
+      </View>
+    );
   }
 
+  const { points, chartHeight, d, dArea } = chartCalculations;
+  const activePointIndex =
+    selectedIndex !== null ? selectedIndex : points.length - 1;
+  const activePoint = points[activePointIndex];
+
   return (
-    <View style={styles.container}>
-      {data.length === 1 && (
-        <View style={styles.singlePointNotice}>
-          <Text style={styles.singlePointText}>
-            All sales are in the same month. Switch to &quot;Month&quot;,
-            &quot;Week&quot;, or &quot;Today&quot; to see more detailed trends.
+    <View style={styles.container} onLayout={onLayout}>
+      {/* Header Info */}
+      <View style={styles.chartHeader}>
+        <View>
+          <Text style={styles.activeLabel}>
+            {activePoint ? formatDateLabel(activePoint.date) : "Total Sales"}
+          </Text>
+          <Text style={styles.activeValue}>
+            {activePoint ? formatCurrencyCompact(activePoint.sales) : "₱0"}
           </Text>
         </View>
-      )}
-      <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-        {/* Y-axis grid lines and labels */}
-        {yAxisLabels.map((value, index) => {
-          const y =
-            chartHeight -
-            ((value - minSales) / (maxSales - minSales || 1)) * chartHeight +
-            PADDING;
-          return (
-            <G key={`y-${index}`}>
+      </View>
+
+      <View style={styles.chartWrapper}>
+        <Svg width={containerWidth} height={CHART_HEIGHT}>
+          <Defs>
+            <LinearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#ec4899" stopOpacity="0.2" />
+              <Stop offset="1" stopColor="#ec4899" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+
+          {/* Grid Lines (Horizontal) */}
+          {[0, 0.5, 1].map((t) => {
+            const y = CHART_HEIGHT - PADDING_BOTTOM - t * chartHeight;
+            return (
               <Line
-                x1={PADDING}
+                key={t}
+                x1={PADDING_LEFT}
                 y1={y}
-                x2={CHART_WIDTH - PADDING}
+                x2={containerWidth - PADDING_RIGHT}
                 y2={y}
-                stroke="#e5e7eb"
+                stroke="#f3f4f6"
                 strokeWidth="1"
                 strokeDasharray="4,4"
               />
+            );
+          })}
+
+          {/* X-axis Labels */}
+          {points.map((point, index) => {
+            // Show fewer labels to prevent overlap
+            const step = Math.max(1, Math.ceil(points.length / 5));
+            if (index % step !== 0 && index !== points.length - 1) return null;
+
+            return (
               <SvgText
-                x={PADDING - 10}
-                y={y + 4}
-                fontSize="10"
-                fill="#6b7280"
-                textAnchor="end"
-              >
-                {value >= 1000
-                  ? formatCurrencyCompact(value / 1000) + "k"
-                  : formatCurrencyCompact(value)}
-              </SvgText>
-            </G>
-          );
-        })}
-
-        {/* X-axis labels */}
-        {data.map((item, index) => {
-          const divisor = data.length > 1 ? data.length - 1 : 1;
-          const step = Math.max(1, Math.ceil(data.length / 5));
-          if (index % step !== 0 && index !== data.length - 1) {
-            return null;
-          }
-          const x = (index / divisor) * chartWidth + PADDING;
-          return (
-            <SvgText
-              key={`x-${index}`}
-              x={x}
-              y={CHART_HEIGHT - 10}
-              fontSize="10"
-              fill="#6b7280"
-              textAnchor="middle"
-            >
-              {formatDateLabel(item.date)}
-            </SvgText>
-          );
-        })}
-
-        {/* Sales line - only render if we have more than one point */}
-        {points.length > 1 && (
-          <Polyline
-            points={points.map((p) => `${p.x},${p.y}`).join(" ")}
-            fill="none"
-            stroke="#ec4899"
-            strokeWidth="2"
-          />
-        )}
-
-        {/* Data points */}
-        {points.map((point, index) => (
-          <G key={`point-${index}`}>
-            <Circle
-              cx={point.x}
-              cy={point.y}
-              r="6"
-              fill="#ec4899"
-              stroke="white"
-              strokeWidth="2"
-            />
-            {/* Show value label for single data point */}
-            {points.length === 1 && (
-              <SvgText
+                key={index}
                 x={point.x}
-                y={point.y - 15}
-                fontSize="12"
-                fill="#ec4899"
-                fontWeight="bold"
+                y={CHART_HEIGHT - 10}
+                fontSize={scaleFont(10)}
+                fill="#9ca3af"
                 textAnchor="middle"
               >
-                {point.sales >= 1000
-                  ? formatCurrencyCompact(point.sales / 1000) + "k"
-                  : formatCurrencyCompact(Math.round(point.sales))}
+                {formatDateLabel(point.date)}
               </SvgText>
-            )}
-          </G>
-        ))}
-      </Svg>
+            );
+          })}
+
+          {/* Area Fill */}
+          {points.length > 1 && <Path d={dArea} fill="url(#gradient)" />}
+
+          {/* Line Path */}
+          {points.length > 1 && (
+            <Path d={d} fill="none" stroke="#ec4899" strokeWidth="3" />
+          )}
+
+          {/* Interactive Overlay & Dots */}
+          {points.map((point, index) => (
+            <G key={index} onPress={() => handleTouch(index)}>
+              {/* Invisible large rect for easier tapping */}
+              <Rect
+                x={point.x - 15}
+                y={0}
+                width={30}
+                height={CHART_HEIGHT}
+                fill="transparent"
+                onPress={() => handleTouch(index)}
+              />
+
+              {/* Active Point Indicator */}
+              {activePointIndex === index && (
+                <G>
+                  {/* Vertical Indicator Line */}
+                  <Line
+                    x1={point.x}
+                    y1={PADDING_TOP}
+                    x2={point.x}
+                    y2={CHART_HEIGHT - PADDING_BOTTOM}
+                    stroke="#ec4899"
+                    strokeWidth="1"
+                    strokeDasharray="4,4"
+                    opacity={0.5}
+                  />
+                  {/* Outer Glow Circle */}
+                  <Circle
+                    cx={point.x}
+                    cy={point.y}
+                    r="8"
+                    fill="#ec4899"
+                    opacity={0.2}
+                  />
+                  {/* Inner Solid Circle */}
+                  <Circle
+                    cx={point.x}
+                    cy={point.y}
+                    r="4"
+                    fill="#ec4899"
+                    stroke="white"
+                    strokeWidth="2"
+                  />
+                </G>
+              )}
+            </G>
+          ))}
+        </Svg>
+      </View>
     </View>
   );
 }
@@ -203,62 +263,65 @@ export default function SalesChart({ data, timeSpan }: SalesChartProps) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 24,
-    marginBottom: 24,
+    borderRadius: scaleDimension(24),
+    padding: scaleDimension(16),
+    marginHorizontal: scaleDimension(24),
+    marginBottom: scaleDimension(24),
+    // Ensure content stays inside
+    overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
       },
       android: {
         elevation: 3,
       },
     }),
+  },
+  chartWrapper: {
+    // This wrapper ensures the SVG doesn't bleed out if calculations are off
+    overflow: "hidden",
+  },
+  chartHeader: {
+    marginBottom: scaleDimension(8),
+    paddingLeft: scaleDimension(8),
+  },
+  activeLabel: {
+    fontSize: scaleFont(12),
+    color: "#6b7280",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: scaleDimension(2),
+  },
+  activeValue: {
+    fontSize: scaleFont(24),
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: -0.5,
   },
   emptyContainer: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 40,
-    marginHorizontal: 24,
-    marginBottom: 24,
+    borderRadius: scaleDimension(16),
+    padding: scaleDimension(40),
+    marginHorizontal: scaleDimension(24),
+    marginBottom: scaleDimension(24),
     alignItems: "center",
     justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    borderWidth: 1,
+    borderColor: "#f3f4f6",
   },
   emptyText: {
-    color: "#6b7280",
-    fontSize: 14,
+    color: "#374151",
+    fontSize: scaleFont(14),
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: scaleDimension(8),
   },
   emptySubtext: {
     color: "#9ca3af",
-    fontSize: 12,
-    textAlign: "center",
-  },
-  singlePointNotice: {
-    backgroundColor: "#fef3c7",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  singlePointText: {
-    color: "#92400e",
-    fontSize: 12,
+    fontSize: scaleFont(12),
     textAlign: "center",
   },
 });

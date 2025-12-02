@@ -1,9 +1,12 @@
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadingState } from "@/components/ui/LoadingState";
 import {
   approvePayslipRequestAction,
   getAllPayslipRequests,
   rejectPayslipRequestAction,
   type PayslipRequestWithEmployee,
 } from "@/lib/actions/payslipActions";
+import { formatCurrency } from "@/lib/utils/currency";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -28,9 +31,6 @@ import {
 } from "react-native";
 import { queryClient } from "../Providers/TanstackProvider";
 import { useToast } from "../ui/toast";
-import { formatCurrency } from "@/lib/utils/currency";
-import { LoadingState } from "@/components/ui/LoadingState";
-import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function PayslipRequestsManager() {
   const toast = useToast();
@@ -42,14 +42,12 @@ export default function PayslipRequestsManager() {
   );
   const [rejectionReason, setRejectionReason] = useState("");
 
-  // Fetch all payslip requests
   const { data: requestsData, isLoading } = useQuery({
     queryKey: ["payslip-requests"],
     queryFn: getAllPayslipRequests,
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000,
   });
 
-  // Approve mutation
   const approveMutation = useMutation({
     mutationFn: approvePayslipRequestAction,
     onSuccess: (result) => {
@@ -66,7 +64,10 @@ export default function PayslipRequestsManager() {
         setShowActionModal(false);
         setSelectedRequest(null);
       } else {
-        toast.error("Error", result.error || "Failed to approve payslip request");
+        toast.error(
+          "Error",
+          result.error || "Failed to approve payslip request"
+        );
       }
     },
     onError: (error: Error) => {
@@ -75,12 +76,10 @@ export default function PayslipRequestsManager() {
     },
   });
 
-  // Reject mutation
   const rejectMutation = useMutation({
     mutationFn: rejectPayslipRequestAction,
     onSuccess: (result) => {
       if (result.success) {
-        // Invalidate all related queries to refresh data
         queryClient.invalidateQueries({ queryKey: ["payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["my-payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
@@ -89,7 +88,10 @@ export default function PayslipRequestsManager() {
         setSelectedRequest(null);
         setRejectionReason("");
       } else {
-        toast.error("Error", result.error || "Failed to reject payslip request");
+        toast.error(
+          "Error",
+          result.error || "Failed to reject payslip request"
+        );
       }
     },
     onError: (error: Error) => {
@@ -116,17 +118,10 @@ export default function PayslipRequestsManager() {
 
   const confirmAction = () => {
     if (!selectedRequest) {
-      console.log("No selected request, cannot confirm action");
       return;
     }
 
-    console.log("Confirming action:", {
-      actionType,
-      requestId: selectedRequest.id,
-    });
-
     if (actionType === "approve") {
-      console.log("Calling approve mutation...");
       approveMutation.mutate({
         requestId: selectedRequest.id,
         periodStartDate: undefined,
@@ -137,7 +132,6 @@ export default function PayslipRequestsManager() {
         toast.error("Error", "Please provide a rejection reason");
         return;
       }
-      console.log("Calling reject mutation...");
       rejectMutation.mutate({
         requestId: selectedRequest.id,
         rejectionReason: rejectionReason.trim(),
@@ -163,7 +157,7 @@ export default function PayslipRequestsManager() {
           <View style={styles.headerIconWrapper}>
             <FileText size={22} color="#ec4899" />
           </View>
-          <View>
+          <View style={styles.headerTextContainer}>
             <Text style={styles.title}>Payslip Requests</Text>
             <Text style={styles.subtitle}>
               {pendingRequests.length} pending request
@@ -195,7 +189,6 @@ export default function PayslipRequestsManager() {
         </ScrollView>
       )}
 
-      {/* Action Modal */}
       <Modal
         visible={showActionModal}
         animationType="slide"
@@ -240,15 +233,29 @@ export default function PayslipRequestsManager() {
                 <View style={styles.requestInfo}>
                   <Text style={styles.infoLabel}>Attendance</Text>
                   <Text style={styles.infoValue}>
-                    {formatCurrency(selectedRequest.calculated_attendance_amount)}
+                    {formatCurrency(
+                      selectedRequest.calculated_attendance_amount
+                    )}
                   </Text>
                 </View>
                 <View style={styles.requestInfo}>
                   <Text style={styles.infoLabel}>Commissions</Text>
                   <Text style={styles.infoValue}>
-                    {formatCurrency(selectedRequest.calculated_commission_amount)}
+                    {formatCurrency(
+                      selectedRequest.calculated_commission_amount
+                    )}
                   </Text>
                 </View>
+                {actionType === "approve" &&
+                  selectedRequest.calculated_commission_amount > 0 && (
+                    <View style={styles.requestInfo}>
+                      <Text style={styles.infoLabel}>Note</Text>
+                      <Text style={styles.infoNote}>
+                        Sales deduction will be applied based on employee's
+                        deduction rate
+                      </Text>
+                    </View>
+                  )}
 
                 {actionType === "reject" && (
                   <View style={styles.rejectionReasonContainer}>
@@ -330,7 +337,7 @@ function PayslipRequestCard({
           <View style={styles.requestAvatar}>
             <User size={18} color="white" />
           </View>
-          <View>
+          <View style={styles.requestInfoContainer}>
             <Text style={styles.requestEmployeeName}>
               {employee
                 ? employee.name || `Employee ${employee.id.slice(0, 8)}`
@@ -345,6 +352,7 @@ function PayslipRequestCard({
             </Text>
           </View>
         </View>
+        {/* Status badge stays top right, flexible text to left pushes against it */}
         <View style={styles.statusBadge}>
           <Clock size={14} color="#f59e0b" />
           <Text style={styles.statusText}>PENDING</Text>
@@ -420,16 +428,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerTextContainer: {
+    flex: 1,
+  },
   title: {
     fontSize: 22,
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.5,
+    flexWrap: "wrap",
   },
   subtitle: {
     fontSize: 13,
     color: "#6b7280",
     marginTop: 4,
+    flexWrap: "wrap",
   },
   loadingContainer: {
     padding: 40,
@@ -489,14 +502,15 @@ const styles = StyleSheet.create({
   requestCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "flex-start", // Changed to flex-start so name wraps nicely
     marginBottom: 16,
   },
   requestCardLeft: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
     flex: 1,
+    marginRight: 8,
   },
   requestAvatar: {
     width: 40,
@@ -506,11 +520,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  requestInfoContainer: {
+    flex: 1, // Allow text to take up space and wrap
+  },
   requestEmployeeName: {
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
     marginBottom: 2,
+    flexWrap: "wrap",
   },
   requestDate: {
     fontSize: 12,
@@ -664,6 +682,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
+    flexWrap: "wrap", // Ensure modal text wraps
   },
   rejectionReasonContainer: {
     marginTop: 8,
@@ -673,6 +692,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
     marginBottom: 8,
+  },
+  infoNote: {
+    fontSize: 12,
+    color: "#6b7280",
+    fontStyle: "italic",
+    marginTop: 4,
+    flexWrap: "wrap",
   },
   rejectionReasonInput: {
     borderWidth: 1,

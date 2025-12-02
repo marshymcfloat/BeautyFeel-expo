@@ -19,6 +19,10 @@ export interface PayslipUnpaidAmount {
   commission_amount: number;
 }
 
+export interface PayslipReleaseWithDeduction extends PayslipRelease {
+  sales_deduction?: number;
+}
+
 export interface CreatePayslipRequestResult {
   success: boolean;
   payslip_request_id?: string;

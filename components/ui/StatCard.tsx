@@ -8,7 +8,7 @@ interface StatCardProps {
   label: string;
   value: string | number | ReactNode;
   icon?: ReactNode;
-  gradientColors?: string[];
+  gradientColors?: [string, string, ...string[]];
   onPress?: () => void;
   loading?: boolean;
   hint?: string;
@@ -27,7 +27,7 @@ export function StatCard({
 }: StatCardProps) {
   const content = (
     <LinearGradient
-      colors={[...gradientColors]}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.cardGradient}
@@ -35,20 +35,24 @@ export function StatCard({
       <View style={styles.cardContent}>
         {icon && <View style={styles.iconContainer}>{icon}</View>}
         <View style={styles.textContainer}>
-          <ResponsiveText variant="xs" style={styles.label} numberOfLines={1}>
+          <ResponsiveText variant="xs" style={styles.label}>
             {label}
           </ResponsiveText>
           {loading ? (
-            <ActivityIndicator size="small" color="white" />
+            <ActivityIndicator
+              size="small"
+              color="white"
+              style={styles.loader}
+            />
           ) : typeof value === "number" || typeof value === "string" ? (
-            <ResponsiveText variant="xl" style={styles.value} numberOfLines={1}>
+            <ResponsiveText variant="xl" style={styles.value}>
               {value}
             </ResponsiveText>
           ) : (
             value
           )}
           {hint && (
-            <ResponsiveText variant="xs" style={styles.hint} numberOfLines={1}>
+            <ResponsiveText variant="xs" style={styles.hint}>
               {hint}
             </ResponsiveText>
           )}
@@ -96,10 +100,11 @@ const styles = StyleSheet.create({
     padding: scaleDimension(14),
     minHeight: scaleDimension(100),
     borderRadius: scaleDimension(16),
+    flex: 1, // Ensures gradient fills height if siblings force expansion
   },
   cardContent: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "center", // Vertically centers icon with text block
     gap: scaleDimension(10),
     flex: 1,
   },
@@ -113,22 +118,30 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
-    minWidth: 0, // Prevents text overflow
+    // minWidth: 0 is still useful to force flex shrink logic,
+    // but without numberOfLines, it will wrap.
+    justifyContent: "center",
   },
   label: {
     color: "rgba(255, 255, 255, 0.95)",
     marginBottom: scaleDimension(4),
     fontWeight: "600",
+    flexWrap: "wrap", // Explicitly allow wrapping
   },
   value: {
     color: "white",
     fontWeight: "700",
     letterSpacing: -0.3,
+    flexWrap: "wrap", // Explicitly allow wrapping
   },
   hint: {
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: scaleDimension(4),
     fontWeight: "500",
+    flexWrap: "wrap",
+  },
+  loader: {
+    alignSelf: "flex-start",
   },
   rightElement: {
     marginLeft: "auto",

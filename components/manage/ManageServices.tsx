@@ -20,14 +20,19 @@ import {
   getContainerPadding,
   PLATFORM,
   scaleDimension,
+  scaleFont,
 } from "@/lib/utils/responsive";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  Edit,
-  MoreVertical,
+  Archive,
+  Clock,
+  Edit2,
+  Layers,
+  LayoutGrid,
   Plus,
   RotateCcw,
   Sparkles,
+  Tag,
   Trash2,
 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
@@ -47,15 +52,11 @@ export default function ManageServices() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedServiceSet, setSelectedServiceSet] =
     useState<ServiceSetWithItems | null>(null);
-  const [expandedServiceId, setExpandedServiceId] = useState<number | null>(
-    null
-  );
-  const [expandedServiceSetId, setExpandedServiceSetId] = useState<
-    number | null
-  >(null);
-  const toast = useToast();
 
-  // Fetch all services
+  const toast = useToast();
+  const containerPadding = getContainerPadding();
+
+  // --- Data Fetching ---
   const {
     data: servicesData,
     isLoading: servicesLoading,
@@ -70,21 +71,17 @@ export default function ManageServices() {
     ? servicesData.data || []
     : [];
 
-  // Fetch all service sets
   const { data: serviceSetsData, isLoading: serviceSetsLoading } = useQuery({
     queryKey: ["all-service-sets"],
     queryFn: async () => {
-      // Fetch service sets for all branches
       const branches: Branch[] = ["NAILS", "SKIN", "LASHES", "MASSAGE"];
       const allSets: ServiceSetWithItems[] = [];
-
       for (const branch of branches) {
         const result = await getServiceSetsForBranch(branch);
         if (result.success && result.data) {
           allSets.push(...(result.data as any[]));
         }
       }
-
       return { success: true, data: allSets };
     },
   });
@@ -93,7 +90,6 @@ export default function ManageServices() {
     ? (serviceSetsData.data as any[])
     : [];
 
-  // Group services by branch
   const servicesByBranch = useMemo(() => {
     const grouped: Record<Branch, Service[]> = {
       NAILS: [],
@@ -101,77 +97,56 @@ export default function ManageServices() {
       LASHES: [],
       MASSAGE: [],
     };
-
     services.forEach((service) => {
       const branch = service.branch as keyof typeof grouped;
       if (grouped[branch]) {
         grouped[branch].push(service);
       }
     });
-
     return grouped;
   }, [services]);
 
-  // Soft delete mutation
+  // --- Mutations ---
   const softDeleteMutation = useMutation({
     mutationFn: softDeleteServiceAction,
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-services"] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        toast.success(
-          "Service Deactivated",
-          "Service deactivated successfully"
-        );
-        setExpandedServiceId(null);
+        toast.success("Deactivated", "Service is now inactive.");
       } else {
-        toast.error("Error", result.error || "Failed to deactivate service");
+        toast.error("Error", result.error || "Failed");
       }
-    },
-    onError: (error) => {
-      toast.error("Error", error.message || "Failed to deactivate service");
     },
   });
 
-  // Restore mutation
   const restoreMutation = useMutation({
     mutationFn: restoreServiceAction,
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-services"] });
         queryClient.invalidateQueries({ queryKey: ["services"] });
-        toast.success("Service Restored", "Service restored successfully");
-        setExpandedServiceId(null);
+        toast.success("Restored", "Service is active again.");
       } else {
-        toast.error("Error", result.error || "Failed to restore service");
+        toast.error("Error", result.error || "Failed");
       }
-    },
-    onError: (error) => {
-      toast.error("Error", error.message || "Failed to restore service");
     },
   });
 
-  // Delete service set mutation
   const deleteServiceSetMutation = useMutation({
     mutationFn: deleteServiceSetAction,
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-service-sets"] });
         queryClient.invalidateQueries({ queryKey: ["service-sets"] });
-        toast.success(
-          "Service Set Deleted",
-          "Service set deleted successfully"
-        );
-        setExpandedServiceSetId(null);
+        toast.success("Deleted", "Service set removed.");
       } else {
-        toast.error("Error", result.error || "Failed to delete service set");
+        toast.error("Error", result.error || "Failed");
       }
-    },
-    onError: (error) => {
-      toast.error("Error", error.message || "Failed to delete service set");
     },
   });
 
+  // --- Handlers ---
   const handleCreateService = () => {
     setSelectedService(null);
     setShowServiceModal(true);
@@ -180,30 +155,21 @@ export default function ManageServices() {
   const handleEditService = (service: Service) => {
     setSelectedService(service);
     setShowServiceModal(true);
-    setExpandedServiceId(null);
   };
 
   const handleDeleteService = (service: Service) => {
     Alert.alert(
       "Deactivate Service",
-      `Are you sure you want to deactivate "${service.title}"? This will hide it from booking options but won't delete it.`,
+      `Hide "${service.title}" from booking options?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Deactivate",
           style: "destructive",
-          onPress: () => {
-            softDeleteMutation.mutate(service.id);
-          },
+          onPress: () => softDeleteMutation.mutate(service.id),
         },
       ]
     );
-    setExpandedServiceId(null);
-  };
-
-  const handleRestoreService = (service: Service) => {
-    restoreMutation.mutate(service.id);
-    setExpandedServiceId(null);
   };
 
   const handleCreateServiceSet = () => {
@@ -214,42 +180,24 @@ export default function ManageServices() {
   const handleEditServiceSet = (serviceSet: ServiceSetWithItems) => {
     setSelectedServiceSet(serviceSet);
     setShowServiceSetModal(true);
-    setExpandedServiceSetId(null);
   };
 
   const handleDeleteServiceSet = (serviceSet: ServiceSetWithItems) => {
     Alert.alert(
       "Delete Service Set",
-      `Are you sure you want to delete "${serviceSet.title}"? This action cannot be undone.`,
+      `Permanently delete "${serviceSet.title}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            deleteServiceSetMutation.mutate(serviceSet.id);
-          },
+          onPress: () => deleteServiceSetMutation.mutate(serviceSet.id),
         },
       ]
-    );
-    setExpandedServiceSetId(null);
-  };
-
-  const toggleServiceActions = (serviceId: number) => {
-    setExpandedServiceId(expandedServiceId === serviceId ? null : serviceId);
-  };
-
-  const toggleServiceSetActions = (serviceSetId: number) => {
-    setExpandedServiceSetId(
-      expandedServiceSetId === serviceSetId ? null : serviceSetId
     );
   };
 
   const isLoading = servicesLoading || serviceSetsLoading;
-  const error = servicesError;
-  const containerPadding = getContainerPadding();
-  const iconSize = scaleDimension(20);
-  const smallIconSize = scaleDimension(18);
 
   if (isLoading) {
     return (
@@ -259,21 +207,12 @@ export default function ManageServices() {
     );
   }
 
-  if (error) {
+  if (servicesError) {
     return (
       <View style={[styles.container, { paddingHorizontal: containerPadding }]}>
-        <ErrorState
-          message={
-            error instanceof Error ? error.message : "Failed to load services"
-          }
-          title="Error Loading Services"
-        />
+        <ErrorState message="Failed to load services" />
         <Pressable style={styles.retryButton} onPress={() => refetchServices()}>
-          <ResponsiveText
-            variant="md"
-            style={styles.retryButtonText}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="md" style={styles.retryButtonText}>
             Retry
           </ResponsiveText>
         </Pressable>
@@ -283,453 +222,299 @@ export default function ManageServices() {
 
   return (
     <View style={[styles.container, { paddingHorizontal: containerPadding }]}>
-      {/* Tab Selector */}
-      <View style={styles.tabSelector}>
-        <Pressable
-          onPress={() => setActiveTab("services")}
-          style={[
-            styles.tabButton,
-            activeTab === "services" && styles.tabButtonActive,
-          ]}
-        >
-          <ResponsiveText
-            variant="sm"
-            style={[
-              styles.tabButtonText,
-              activeTab === "services" && styles.tabButtonTextActive,
-            ]}
-            numberOfLines={1}
+      {/* Header & Tabs */}
+      <View style={styles.topSection}>
+        <View style={styles.tabContainer}>
+          <Pressable
+            onPress={() => setActiveTab("services")}
+            style={[styles.tab, activeTab === "services" && styles.tabActive]}
           >
-            Services
-          </ResponsiveText>
-        </Pressable>
-        <Pressable
-          onPress={() => setActiveTab("serviceSets")}
-          style={[
-            styles.tabButton,
-            activeTab === "serviceSets" && styles.tabButtonActive,
-          ]}
-        >
-          <ResponsiveText
-            variant="sm"
+            <LayoutGrid
+              size={16}
+              color={activeTab === "services" ? "#ec4899" : "#6b7280"}
+            />
+            <ResponsiveText
+              variant="sm"
+              style={[
+                styles.tabText,
+                activeTab === "services" && styles.tabTextActive,
+              ]}
+            >
+              Services
+            </ResponsiveText>
+          </Pressable>
+          <Pressable
+            onPress={() => setActiveTab("serviceSets")}
             style={[
-              styles.tabButtonText,
-              activeTab === "serviceSets" && styles.tabButtonTextActive,
+              styles.tab,
+              activeTab === "serviceSets" && styles.tabActive,
             ]}
-            numberOfLines={1}
           >
-            Service Sets
-          </ResponsiveText>
+            <Layers
+              size={16}
+              color={activeTab === "serviceSets" ? "#ec4899" : "#6b7280"}
+            />
+            <ResponsiveText
+              variant="sm"
+              style={[
+                styles.tabText,
+                activeTab === "serviceSets" && styles.tabTextActive,
+              ]}
+            >
+              Service Sets
+            </ResponsiveText>
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={
+            activeTab === "services"
+              ? handleCreateService
+              : handleCreateServiceSet
+          }
+          style={styles.addButton}
+        >
+          <Plus size={20} color="white" />
         </Pressable>
       </View>
 
-      {/* Services Tab */}
-      {activeTab === "services" && (
-        <>
-          <View style={styles.header}>
-            <View style={styles.headerTextContainer}>
-              <ResponsiveText
-                variant="2xl"
-                style={styles.headerTitle}
-                numberOfLines={1}
-              >
-                Services
-              </ResponsiveText>
-              <ResponsiveText
-                variant="sm"
-                style={styles.headerSubtitle}
-                numberOfLines={1}
-              >
-                {services.length} total service
-                {services.length !== 1 ? "s" : ""}
-              </ResponsiveText>
-            </View>
-            <Pressable onPress={handleCreateService} style={styles.addButton}>
-              <Plus size={iconSize} color="white" />
-              <ResponsiveText
-                variant="sm"
-                style={styles.addButtonText}
-                numberOfLines={1}
-              >
-                Add Service
-              </ResponsiveText>
-            </Pressable>
-          </View>
-
-          {services.length === 0 ? (
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === "services" ? (
+          services.length === 0 ? (
             <EmptyState
               icon={<Sparkles size={48} color="#9ca3af" />}
               title="No services found"
               message="Create your first service to get started."
             />
           ) : (
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {(["NAILS", "SKIN", "LASHES", "MASSAGE"] as Branch[]).map(
-                (branch) => {
-                  const branchServices = servicesByBranch[branch];
-                  if (branchServices.length === 0) return null;
+            (["NAILS", "SKIN", "LASHES", "MASSAGE"] as Branch[]).map(
+              (branch) => {
+                const branchServices = servicesByBranch[branch];
+                if (branchServices.length === 0) return null;
 
-                  return (
-                    <View key={branch} style={styles.branchSection}>
-                      <ResponsiveText
-                        variant="lg"
-                        style={styles.branchTitle}
-                        numberOfLines={1}
+                return (
+                  <View key={branch} style={styles.section}>
+                    <ResponsiveText variant="lg" style={styles.sectionTitle}>
+                      {branch}
+                    </ResponsiveText>
+                    {branchServices.map((service) => (
+                      <View
+                        key={service.id}
+                        style={[
+                          styles.card,
+                          !service.is_active && styles.cardInactive,
+                        ]}
                       >
-                        {branch}
-                      </ResponsiveText>
-                      {branchServices.map((service) => (
-                        <View key={service.id} style={styles.serviceCard}>
-                          <View style={styles.serviceContent}>
-                            <View style={styles.serviceHeader}>
-                              <ResponsiveText
-                                variant="lg"
-                                style={styles.serviceTitle}
-                                numberOfLines={2}
-                              >
-                                {service.title}
-                              </ResponsiveText>
-                              {!service.is_active && (
-                                <View style={styles.inactiveBadge}>
-                                  <ResponsiveText
-                                    variant="xs"
-                                    style={styles.inactiveBadgeText}
-                                    numberOfLines={1}
-                                  >
-                                    Inactive
-                                  </ResponsiveText>
-                                </View>
-                              )}
-                            </View>
-                            {service.description && (
-                              <ResponsiveText
-                                variant="sm"
-                                style={styles.serviceDescription}
-                                numberOfLines={2}
-                              >
-                                {service.description}
-                              </ResponsiveText>
-                            )}
-                            <View style={styles.serviceDetails}>
-                              <ResponsiveText
-                                variant="sm"
-                                style={styles.serviceDetail}
-                                numberOfLines={1}
-                              >
-                                {formatCurrency(service.price)}
-                              </ResponsiveText>
-                              <ResponsiveText
-                                variant="sm"
-                                style={styles.serviceDetailSeparator}
-                                numberOfLines={1}
-                              >
-                                •
-                              </ResponsiveText>
-                              <ResponsiveText
-                                variant="sm"
-                                style={styles.serviceDetail}
-                                numberOfLines={1}
-                              >
-                                {service.duration_minutes} min
-                              </ResponsiveText>
-                              {service.category && (
-                                <>
-                                  <ResponsiveText
-                                    variant="sm"
-                                    style={styles.serviceDetailSeparator}
-                                    numberOfLines={1}
-                                  >
-                                    •
-                                  </ResponsiveText>
-                                  <ResponsiveText
-                                    variant="sm"
-                                    style={styles.serviceDetail}
-                                    numberOfLines={1}
-                                  >
-                                    {service.category}
-                                  </ResponsiveText>
-                                </>
-                              )}
-                            </View>
-                          </View>
-                          <View style={styles.actionsContainer}>
-                            <Pressable
-                              style={styles.actionButton}
-                              onPress={() => toggleServiceActions(service.id)}
+                        <View style={styles.cardHeader}>
+                          <View style={styles.cardHeaderLeft}>
+                            <ResponsiveText
+                              variant="lg"
+                              style={[
+                                styles.cardTitle,
+                                !service.is_active && styles.textInactive,
+                              ]}
                             >
-                              <MoreVertical size={iconSize} color="#6b7280" />
-                            </Pressable>
-                            {expandedServiceId === service.id && (
-                              <View style={styles.actionsMenu}>
-                                <Pressable
-                                  style={styles.actionMenuItem}
-                                  onPress={() => handleEditService(service)}
+                              {service.title}
+                            </ResponsiveText>
+                            {service.category && (
+                              <View style={styles.categoryTag}>
+                                <ResponsiveText
+                                  variant="xs"
+                                  style={styles.categoryText}
                                 >
-                                  <Edit size={smallIconSize} color="#3b82f6" />
-                                  <ResponsiveText
-                                    variant="sm"
-                                    style={styles.actionMenuText}
-                                    numberOfLines={1}
-                                  >
-                                    Edit
-                                  </ResponsiveText>
-                                </Pressable>
-                                <View style={styles.actionMenuDivider} />
-                                {service.is_active ? (
-                                  <Pressable
-                                    style={[
-                                      styles.actionMenuItem,
-                                      styles.actionMenuItemDanger,
-                                    ]}
-                                    onPress={() => handleDeleteService(service)}
-                                  >
-                                    <Trash2
-                                      size={smallIconSize}
-                                      color="#ef4444"
-                                    />
-                                    <ResponsiveText
-                                      variant="sm"
-                                      style={[
-                                        styles.actionMenuText,
-                                        styles.actionMenuTextDanger,
-                                      ]}
-                                      numberOfLines={1}
-                                    >
-                                      Deactivate
-                                    </ResponsiveText>
-                                  </Pressable>
-                                ) : (
-                                  <Pressable
-                                    style={styles.actionMenuItem}
-                                    onPress={() =>
-                                      handleRestoreService(service)
-                                    }
-                                  >
-                                    <RotateCcw
-                                      size={smallIconSize}
-                                      color="#10b981"
-                                    />
-                                    <ResponsiveText
-                                      variant="sm"
-                                      style={styles.actionMenuText}
-                                      numberOfLines={1}
-                                    >
-                                      Restore
-                                    </ResponsiveText>
-                                  </Pressable>
-                                )}
+                                  {service.category}
+                                </ResponsiveText>
                               </View>
                             )}
                           </View>
+                          <ResponsiveText
+                            variant="lg"
+                            style={[
+                              styles.priceText,
+                              !service.is_active && styles.textInactive,
+                            ]}
+                          >
+                            {formatCurrency(service.price)}
+                          </ResponsiveText>
                         </View>
-                      ))}
-                    </View>
-                  );
-                }
-              )}
-            </ScrollView>
-          )}
-        </>
-      )}
 
-      {/* Service Sets Tab */}
-      {activeTab === "serviceSets" && (
-        <>
-          <View style={styles.header}>
-            <View style={styles.headerTextContainer}>
-              <ResponsiveText
-                variant="2xl"
-                style={styles.headerTitle}
-                numberOfLines={1}
-              >
-                Service Sets
-              </ResponsiveText>
-              <ResponsiveText
-                variant="sm"
-                style={styles.headerSubtitle}
-                numberOfLines={1}
-              >
-                {serviceSets.length} total set
-                {serviceSets.length !== 1 ? "s" : ""}
-              </ResponsiveText>
-            </View>
-            <Pressable
-              onPress={handleCreateServiceSet}
-              style={styles.addButton}
-            >
-              <Plus size={iconSize} color="white" />
-              <ResponsiveText
-                variant="sm"
-                style={styles.addButtonText}
-                numberOfLines={1}
-              >
-                Add Set
-              </ResponsiveText>
-            </Pressable>
-          </View>
+                        <View style={styles.cardMeta}>
+                          <View style={styles.metaItem}>
+                            <Clock size={14} color="#6b7280" />
+                            <ResponsiveText
+                              variant="sm"
+                              style={styles.metaText}
+                            >
+                              {service.duration_minutes} min
+                            </ResponsiveText>
+                          </View>
+                        </View>
 
-          {serviceSets.length === 0 ? (
-            <EmptyState
-              icon={<Sparkles size={48} color="#9ca3af" />}
-              title="No service sets found"
-              message="Create your first service set to bundle services together."
-            />
-          ) : (
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {serviceSets.map((serviceSet: any) => (
-                <View key={serviceSet.id} style={styles.serviceCard}>
-                  <View style={styles.serviceContent}>
-                    <View style={styles.serviceHeader}>
-                      <ResponsiveText
-                        variant="lg"
-                        style={styles.serviceTitle}
-                        numberOfLines={2}
-                      >
+                        {service.description && (
+                          <ResponsiveText
+                            variant="sm"
+                            style={styles.description}
+                            numberOfLines={2}
+                          >
+                            {service.description}
+                          </ResponsiveText>
+                        )}
+
+                        <View style={styles.cardFooter}>
+                          <Pressable
+                            style={styles.footerButton}
+                            onPress={() => handleEditService(service)}
+                          >
+                            <Edit2 size={16} color="#3b82f6" />
+                            <ResponsiveText
+                              variant="sm"
+                              style={styles.footerButtonText}
+                            >
+                              Edit
+                            </ResponsiveText>
+                          </Pressable>
+
+                          <View style={styles.footerDivider} />
+
+                          {service.is_active ? (
+                            <Pressable
+                              style={styles.footerButton}
+                              onPress={() => handleDeleteService(service)}
+                            >
+                              <Archive size={16} color="#ef4444" />
+                              <ResponsiveText
+                                variant="sm"
+                                style={[
+                                  styles.footerButtonText,
+                                  styles.textDanger,
+                                ]}
+                              >
+                                Deactivate
+                              </ResponsiveText>
+                            </Pressable>
+                          ) : (
+                            <Pressable
+                              style={styles.footerButton}
+                              onPress={() => restoreMutation.mutate(service.id)}
+                            >
+                              <RotateCcw size={16} color="#10b981" />
+                              <ResponsiveText
+                                variant="sm"
+                                style={[
+                                  styles.footerButtonText,
+                                  styles.textSuccess,
+                                ]}
+                              >
+                                Restore
+                              </ResponsiveText>
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              }
+            )
+          )
+        ) : (
+          /* Service Sets Tab */
+          <>
+            {serviceSets.length === 0 ? (
+              <EmptyState
+                icon={<Layers size={48} color="#9ca3af" />}
+                title="No service sets"
+                message="Bundle services together for packages."
+              />
+            ) : (
+              serviceSets.map((serviceSet: any) => (
+                <View key={serviceSet.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <ResponsiveText variant="lg" style={styles.cardTitle}>
                         {serviceSet.title}
                       </ResponsiveText>
-                      {!serviceSet.is_active && (
-                        <View style={styles.inactiveBadge}>
-                          <ResponsiveText
-                            variant="xs"
-                            style={styles.inactiveBadgeText}
-                            numberOfLines={1}
-                          >
-                            Inactive
-                          </ResponsiveText>
-                        </View>
-                      )}
-                    </View>
-                    {serviceSet.description && (
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.serviceDescription}
-                        numberOfLines={2}
-                      >
-                        {serviceSet.description}
-                      </ResponsiveText>
-                    )}
-                    <View style={styles.serviceDetails}>
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.serviceDetail}
-                        numberOfLines={1}
-                      >
-                        {formatCurrency(serviceSet.price)}
-                      </ResponsiveText>
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.serviceDetailSeparator}
-                        numberOfLines={1}
-                      >
-                        •
-                      </ResponsiveText>
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.serviceDetail}
-                        numberOfLines={1}
-                      >
-                        {serviceSet.branch}
-                      </ResponsiveText>
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.serviceDetailSeparator}
-                        numberOfLines={1}
-                      >
-                        •
-                      </ResponsiveText>
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.serviceDetail}
-                        numberOfLines={1}
-                      >
-                        {serviceSet.service_set_items?.length || 0} services
-                      </ResponsiveText>
-                    </View>
-                    {serviceSet.service_set_items &&
-                      serviceSet.service_set_items.length > 0 && (
-                        <View style={styles.serviceSetItems}>
-                          <ResponsiveText
-                            variant="xs"
-                            style={styles.serviceSetItemsLabel}
-                            numberOfLines={1}
-                          >
-                            Includes:
-                          </ResponsiveText>
-                          <ResponsiveText
-                            variant="xs"
-                            style={styles.serviceSetItemsList}
-                            numberOfLines={3}
-                          >
-                            {serviceSet.service_set_items
-                              .map(
-                                (item: any) =>
-                                  item.service?.title ||
-                                  `Service ${item.service_id}`
-                              )
-                              .join(", ")}
-                          </ResponsiveText>
-                        </View>
-                      )}
-                  </View>
-                  <View style={styles.actionsContainer}>
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => toggleServiceSetActions(serviceSet.id)}
-                    >
-                      <MoreVertical size={iconSize} color="#6b7280" />
-                    </Pressable>
-                    {expandedServiceSetId === serviceSet.id && (
-                      <View style={styles.actionsMenu}>
-                        <Pressable
-                          style={styles.actionMenuItem}
-                          onPress={() => handleEditServiceSet(serviceSet)}
-                        >
-                          <Edit size={smallIconSize} color="#3b82f6" />
-                          <ResponsiveText
-                            variant="sm"
-                            style={styles.actionMenuText}
-                            numberOfLines={1}
-                          >
-                            Edit
-                          </ResponsiveText>
-                        </Pressable>
-                        <View style={styles.actionMenuDivider} />
-                        <Pressable
-                          style={[
-                            styles.actionMenuItem,
-                            styles.actionMenuItemDanger,
-                          ]}
-                          onPress={() => handleDeleteServiceSet(serviceSet)}
-                        >
-                          <Trash2 size={smallIconSize} color="#ef4444" />
-                          <ResponsiveText
-                            variant="sm"
-                            style={[
-                              styles.actionMenuText,
-                              styles.actionMenuTextDanger,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            Delete
-                          </ResponsiveText>
-                        </Pressable>
+                      <View style={styles.branchTag}>
+                        <ResponsiveText variant="xs" style={styles.branchText}>
+                          {serviceSet.branch}
+                        </ResponsiveText>
                       </View>
-                    )}
+                    </View>
+                    <ResponsiveText variant="lg" style={styles.priceText}>
+                      {formatCurrency(serviceSet.price)}
+                    </ResponsiveText>
+                  </View>
+
+                  <ResponsiveText
+                    variant="sm"
+                    style={styles.description}
+                    numberOfLines={2}
+                  >
+                    {serviceSet.description || "No description provided."}
+                  </ResponsiveText>
+
+                  <View style={styles.setIncludes}>
+                    <ResponsiveText
+                      variant="xs"
+                      style={styles.setIncludesLabel}
+                    >
+                      Includes {serviceSet.service_set_items?.length || 0}{" "}
+                      items:
+                    </ResponsiveText>
+                    <View style={styles.tagsRow}>
+                      {serviceSet.service_set_items?.map(
+                        (item: any, idx: number) => (
+                          <View key={idx} style={styles.serviceTag}>
+                            <Tag size={10} color="#6b7280" />
+                            <ResponsiveText
+                              variant="xs"
+                              style={styles.serviceTagText}
+                            >
+                              {item.service?.title}
+                            </ResponsiveText>
+                          </View>
+                        )
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.cardFooter}>
+                    <Pressable
+                      style={styles.footerButton}
+                      onPress={() => handleEditServiceSet(serviceSet)}
+                    >
+                      <Edit2 size={16} color="#3b82f6" />
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.footerButtonText}
+                      >
+                        Edit
+                      </ResponsiveText>
+                    </Pressable>
+                    <View style={styles.footerDivider} />
+                    <Pressable
+                      style={styles.footerButton}
+                      onPress={() => handleDeleteServiceSet(serviceSet)}
+                    >
+                      <Trash2 size={16} color="#ef4444" />
+                      <ResponsiveText
+                        variant="sm"
+                        style={[styles.footerButtonText, styles.textDanger]}
+                      >
+                        Delete
+                      </ResponsiveText>
+                    </Pressable>
                   </View>
                 </View>
-              ))}
-            </ScrollView>
-          )}
-        </>
-      )}
+              ))
+            )}
+          </>
+        )}
+      </ScrollView>
 
       {/* Modals */}
       <ServiceFormModal
@@ -763,66 +548,50 @@ export default function ManageServices() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: scaleDimension(20),
+    flex: 1,
   },
-  tabSelector: {
+  topSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: scaleDimension(16),
+    gap: scaleDimension(12),
+  },
+  tabContainer: {
+    flex: 1,
     flexDirection: "row",
     backgroundColor: "white",
-    borderRadius: scaleDimension(12),
     padding: scaleDimension(4),
-    marginBottom: scaleDimension(20),
-    ...PLATFORM.shadowMd,
+    borderRadius: scaleDimension(12),
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
-  tabButton: {
+  tab: {
     flex: 1,
-    paddingVertical: scaleDimension(10),
-    paddingHorizontal: scaleDimension(16),
-    borderRadius: scaleDimension(8),
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: scaleDimension(8),
+    gap: scaleDimension(6),
+    borderRadius: scaleDimension(8),
   },
-  tabButtonActive: {
+  tabActive: {
     backgroundColor: "#fdf2f8",
   },
-  tabButtonText: {
+  tabText: {
     fontWeight: "600",
     color: "#6b7280",
   },
-  tabButtonTextActive: {
+  tabTextActive: {
     color: "#ec4899",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: scaleDimension(20),
-  },
-  headerTextContainer: {
-    flex: 1,
-    minWidth: 0, // Prevents text overflow
-  },
-  headerTitle: {
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    color: "#6b7280",
-    marginTop: scaleDimension(4),
-  },
   addButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    width: scaleDimension(44),
+    height: scaleDimension(44),
     backgroundColor: "#ec4899",
-    paddingHorizontal: scaleDimension(16),
-    paddingVertical: scaleDimension(10),
     borderRadius: scaleDimension(12),
-    gap: scaleDimension(8),
-    ...PLATFORM.shadowLg,
-  },
-  addButtonText: {
-    color: "white",
-    fontWeight: "600",
+    alignItems: "center",
+    justifyContent: "center",
+    ...PLATFORM.shadow,
   },
   scrollView: {
     flex: 1,
@@ -830,123 +599,155 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: scaleDimension(100),
   },
-  branchSection: {
+  section: {
     marginBottom: scaleDimension(24),
   },
-  branchTitle: {
-    fontWeight: "700",
+  sectionTitle: {
+    fontWeight: "800",
     color: "#111827",
     marginBottom: scaleDimension(12),
     textTransform: "uppercase",
+    fontSize: scaleFont(14),
     letterSpacing: 0.5,
   },
-  serviceCard: {
+  card: {
     backgroundColor: "white",
     borderRadius: scaleDimension(16),
-    padding: scaleDimension(16),
     marginBottom: scaleDimension(12),
     borderWidth: 1,
     borderColor: "#f3f4f6",
-    flexDirection: "row",
-    justifyContent: "space-between",
+    overflow: "hidden",
     ...PLATFORM.shadow,
   },
-  serviceContent: {
-    flex: 1,
-    minWidth: 0, // Prevents text overflow
+  cardInactive: {
+    opacity: 0.75,
+    backgroundColor: "#f9fafb",
   },
-  serviceHeader: {
+  cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: scaleDimension(8),
-    marginBottom: scaleDimension(8),
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    padding: scaleDimension(16),
   },
-  serviceTitle: {
+  cardHeaderLeft: {
+    flex: 1,
+    marginRight: scaleDimension(12),
+  },
+  cardTitle: {
     fontWeight: "700",
     color: "#111827",
-    flex: 1,
-    minWidth: 0, // Prevents text overflow
-  },
-  inactiveBadge: {
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: scaleDimension(8),
-    paddingVertical: scaleDimension(4),
-    borderRadius: scaleDimension(6),
-  },
-  inactiveBadgeText: {
-    color: "#dc2626",
-    fontWeight: "600",
-  },
-  serviceDescription: {
-    color: "#6b7280",
-    marginBottom: scaleDimension(8),
-  },
-  serviceDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: scaleDimension(8),
+    marginBottom: scaleDimension(4),
     flexWrap: "wrap",
   },
-  serviceDetail: {
+  textInactive: {
     color: "#6b7280",
+    textDecorationLine: "line-through",
+  },
+  priceText: {
+    fontWeight: "800",
+    color: "#ec4899",
+  },
+  categoryTag: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: scaleDimension(8),
+    paddingVertical: scaleDimension(2),
+    borderRadius: scaleDimension(4),
+  },
+  categoryText: {
+    color: "#4b5563",
     fontWeight: "500",
   },
-  serviceDetailSeparator: {
-    color: "#d1d5db",
-  },
-  serviceSetItems: {
-    marginTop: scaleDimension(8),
-    paddingTop: scaleDimension(8),
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-  },
-  serviceSetItemsLabel: {
-    color: "#9ca3af",
-    fontWeight: "600",
-    marginBottom: scaleDimension(4),
-  },
-  serviceSetItemsList: {
-    color: "#6b7280",
-  },
-  actionsContainer: {
-    position: "relative",
-    marginLeft: scaleDimension(12),
-  },
-  actionButton: {
-    padding: scaleDimension(8),
-  },
-  actionsMenu: {
-    position: "absolute",
-    top: scaleDimension(40),
-    right: 0,
-    backgroundColor: "white",
-    borderRadius: scaleDimension(12),
-    padding: scaleDimension(8),
-    minWidth: scaleDimension(160),
-    ...PLATFORM.shadowLg,
-    zIndex: 1000,
-  },
-  actionMenuItem: {
+  cardMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: scaleDimension(12),
-    paddingVertical: scaleDimension(12),
-    paddingHorizontal: scaleDimension(12),
+    paddingHorizontal: scaleDimension(16),
+    marginBottom: scaleDimension(8),
   },
-  actionMenuItemDanger: {
-    // Styled via text color
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(4),
   },
-  actionMenuText: {
-    color: "#374151",
+  metaText: {
+    color: "#6b7280",
     fontWeight: "500",
   },
-  actionMenuTextDanger: {
+  description: {
+    paddingHorizontal: scaleDimension(16),
+    marginBottom: scaleDimension(16),
+    color: "#6b7280",
+  },
+  cardFooter: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+    backgroundColor: "#fafafa",
+  },
+  footerButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: scaleDimension(12),
+    gap: scaleDimension(8),
+  },
+  footerButtonText: {
+    fontWeight: "600",
+    color: "#374151",
+  },
+  footerDivider: {
+    width: 1,
+    backgroundColor: "#e5e7eb",
+    marginVertical: scaleDimension(8),
+  },
+  textDanger: {
     color: "#ef4444",
   },
-  actionMenuDivider: {
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginVertical: scaleDimension(4),
+  textSuccess: {
+    color: "#10b981",
+  },
+  branchTag: {
+    alignSelf: "flex-start",
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: scaleDimension(8),
+    paddingVertical: scaleDimension(2),
+    borderRadius: scaleDimension(4),
+    marginTop: scaleDimension(4),
+  },
+  branchText: {
+    color: "#2563eb",
+    fontWeight: "600",
+    fontSize: scaleFont(10),
+  },
+  setIncludes: {
+    paddingHorizontal: scaleDimension(16),
+    marginBottom: scaleDimension(16),
+  },
+  setIncludesLabel: {
+    color: "#9ca3af",
+    marginBottom: scaleDimension(6),
+    fontWeight: "600",
+  },
+  tagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: scaleDimension(6),
+  },
+  serviceTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: scaleDimension(8),
+    paddingVertical: scaleDimension(4),
+    borderRadius: scaleDimension(12),
+    gap: scaleDimension(4),
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  serviceTagText: {
+    color: "#4b5563",
+    fontWeight: "500",
   },
   retryButton: {
     marginTop: scaleDimension(16),

@@ -12,8 +12,16 @@ import {
 } from "@/lib/actions/bookingActions";
 import { sortBookings } from "@/lib/utils/bookingSorting";
 import { SERVICE_STATUS } from "@/lib/utils/constants";
+import { getContainerPadding, scaleDimension } from "@/lib/utils/responsive";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, Eye, MoreVertical, Trash2 } from "lucide-react-native";
+import {
+  Calendar,
+  Eye,
+  Filter,
+  MoreVertical,
+  Search,
+  Trash2,
+} from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +31,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -34,8 +43,8 @@ export default function ManageBookings() {
     null
   );
   const toast = useToast();
+  const containerPadding = getContainerPadding();
 
-  // Fetch all bookings
   const {
     data: bookingsData,
     isLoading,
@@ -55,7 +64,6 @@ export default function ManageBookings() {
   const bookings = bookingsData || [];
   const sortedBookings = useMemo(() => {
     if (!bookings || bookings.length === 0) return [];
-    // Cast to the expected type for BookingCard
     return sortBookings(bookings as unknown as BookingWithServices[]);
   }, [bookings]);
 
@@ -65,12 +73,6 @@ export default function ManageBookings() {
     setExpandedBookingId(null);
   };
 
-  const handleCloseDetailsModal = () => {
-    setShowDetailsModal(false);
-    setSelectedBooking(null);
-  };
-
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteBookingAction,
     onSuccess: (result) => {
@@ -88,59 +90,35 @@ export default function ManageBookings() {
     },
   });
 
-  // Check if booking has any served services
-  const hasServedServices = (booking: BookingWithServices) => {
-    return (
-      booking.service_bookings?.some(
-        (sb) => sb.status === SERVICE_STATUS.SERVED
-      ) || false
-    );
-  };
-
   const handleDeleteBooking = (booking: BookingWithServices) => {
-    // Check if any services are served
-    if (hasServedServices(booking)) {
+    const hasServed = booking.service_bookings?.some(
+      (sb) => sb.status === SERVICE_STATUS.SERVED
+    );
+
+    if (hasServed) {
       Alert.alert(
-        "Cannot Delete Booking",
-        "This booking cannot be deleted because one or more services have already been served.",
+        "Cannot Delete",
+        "This booking has served services and cannot be deleted.",
         [{ text: "OK" }]
       );
       setExpandedBookingId(null);
       return;
     }
 
-    Alert.alert(
-      "Delete Booking",
-      `Are you sure you want to delete this booking for ${
-        booking.customer?.name || "this customer"
-      }? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deleteMutation.mutate(booking.id);
-          },
-        },
-      ]
-    );
+    Alert.alert("Delete Booking", "Are you sure? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMutation.mutate(booking.id),
+      },
+    ]);
     setExpandedBookingId(null);
   };
 
-  const toggleActions = (bookingId: number) => {
-    setExpandedBookingId(expandedBookingId === bookingId ? null : bookingId);
-  };
-
-  // Dummy handlers for BookingCard (not used in manage view)
-  const handleClaimService = async () => {};
-  const handleServeService = async () => {};
-  const handleUnclaimService = async () => {};
-  const handleUnserveService = async () => {};
-
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingHorizontal: containerPadding }]}>
         <LoadingState variant="list" count={5} />
       </View>
     );
@@ -148,13 +126,8 @@ export default function ManageBookings() {
 
   if (error) {
     return (
-      <View style={styles.container}>
-        <ErrorState
-          message={
-            error instanceof Error ? error.message : "Failed to load bookings"
-          }
-          title="Error Loading Bookings"
-        />
+      <View style={[styles.container, { paddingHorizontal: containerPadding }]}>
+        <ErrorState message="Failed to load bookings" />
         <Pressable style={styles.retryButton} onPress={() => refetch()}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </Pressable>
@@ -164,112 +137,119 @@ export default function ManageBookings() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>All Bookings</Text>
-        <Text style={styles.headerSubtitle}>
-          {bookings.length} total booking{bookings.length !== 1 ? "s" : ""}
-        </Text>
+      {/* Search & Filter Header (Visual Only for now) */}
+      <View style={[styles.header, { paddingHorizontal: containerPadding }]}>
+        <View style={styles.searchContainer}>
+          <Search size={20} color="#9ca3af" />
+          <TextInput
+            placeholder="Search bookings..."
+            style={styles.searchInput}
+            placeholderTextColor="#9ca3af"
+          />
+        </View>
+        <Pressable style={styles.filterButton}>
+          <Filter size={20} color="#6b7280" />
+        </Pressable>
       </View>
 
-      {bookings.length === 0 ? (
-        <EmptyState
-          icon={<Calendar size={48} color="#9ca3af" />}
-          title="No bookings found"
-          message="There are no bookings in the system yet."
-        />
-      ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {sortedBookings.map((booking) => (
-            <View key={booking.id} style={styles.bookingWrapper}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: containerPadding },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>All Bookings</Text>
+          <Text style={styles.listCount}>
+            {bookings.length} result{bookings.length !== 1 ? "s" : ""}
+          </Text>
+        </View>
+
+        {bookings.length === 0 ? (
+          <EmptyState
+            icon={<Calendar size={48} color="#9ca3af" />}
+            title="No bookings found"
+            message="There are no bookings in the system yet."
+          />
+        ) : (
+          sortedBookings.map((booking) => (
+            <View
+              key={booking.id}
+              style={styles.bookingWrapper}
+              className="my-2"
+            >
               <BookingCard
                 booking={booking}
                 currentUserId={null}
-                onClaimService={handleClaimService}
-                onServeService={handleServeService}
-                onViewDetails={(booking) => {
-                  // Only open details if actions menu is not open
-                  if (expandedBookingId !== booking.id) {
-                    handleViewDetails(booking);
-                  }
-                }}
-              />
-              {/* Action Buttons */}
-              <View style={styles.actionsContainer}>
-                <Pressable
-                  style={styles.actionButton}
-                  onPress={() => toggleActions(booking.id)}
-                >
-                  <MoreVertical size={20} color="#6b7280" />
-                </Pressable>
-                {expandedBookingId === booking.id && (
-                  <View style={styles.actionsMenu}>
+                onClaimService={async (_instanceId: number) => {}}
+                onServeService={async (_instanceId: number) => {}}
+                onViewDetails={handleViewDetails}
+                // Inject the Menu Button into the Card Header
+                renderHeaderRight={() => (
+                  <View style={styles.menuContainer}>
                     <Pressable
-                      style={styles.actionMenuItem}
-                      onPress={() => {
-                        handleViewDetails(booking);
-                        setExpandedBookingId(null);
+                      style={styles.menuButton}
+                      hitSlop={10}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setExpandedBookingId(
+                          expandedBookingId === booking.id ? null : booking.id
+                        );
                       }}
                     >
-                      <Eye size={18} color="#3b82f6" />
-                      <Text style={styles.actionMenuText}>View Details</Text>
+                      <MoreVertical size={20} color="#9ca3af" />
                     </Pressable>
-                    <View style={styles.actionMenuDivider} />
-                    <Pressable
-                      style={[
-                        styles.actionMenuItem,
-                        styles.actionMenuItemDanger,
-                        (deleteMutation.isPending ||
-                          hasServedServices(booking)) &&
-                          styles.actionMenuItemDisabled,
-                      ]}
-                      onPress={() => handleDeleteBooking(booking)}
-                      disabled={
-                        deleteMutation.isPending || hasServedServices(booking)
-                      }
-                    >
-                      {deleteMutation.isPending &&
-                      deleteMutation.variables === booking.id ? (
-                        <ActivityIndicator size="small" color="#ef4444" />
-                      ) : (
-                        <Trash2
-                          size={18}
-                          color={
-                            hasServedServices(booking) ? "#9ca3af" : "#ef4444"
-                          }
-                        />
-                      )}
-                      <Text
-                        style={[
-                          styles.actionMenuText,
-                          styles.actionMenuTextDanger,
-                          hasServedServices(booking) &&
-                            styles.actionMenuTextDisabled,
-                        ]}
-                      >
-                        Delete
-                      </Text>
-                    </Pressable>
+
+                    {expandedBookingId === booking.id && (
+                      <View style={styles.popupMenu}>
+                        <Pressable
+                          style={styles.popupMenuItem}
+                          onPress={() => handleViewDetails(booking)}
+                        >
+                          <Eye size={16} color="#3b82f6" />
+                          <Text style={styles.popupMenuText}>View</Text>
+                        </Pressable>
+                        <View style={styles.menuDivider} />
+                        <Pressable
+                          style={styles.popupMenuItem}
+                          onPress={() => handleDeleteBooking(booking)}
+                        >
+                          {deleteMutation.isPending &&
+                          deleteMutation.variables === booking.id ? (
+                            <ActivityIndicator size="small" color="#ef4444" />
+                          ) : (
+                            <Trash2 size={16} color="#ef4444" />
+                          )}
+                          <Text
+                            style={[
+                              styles.popupMenuText,
+                              styles.popupMenuTextDanger,
+                            ]}
+                          >
+                            Delete
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
                 )}
-              </View>
+              />
             </View>
-          ))}
-        </ScrollView>
-      )}
+          ))
+        )}
+      </ScrollView>
 
       <BookingDetailsModal
         visible={showDetailsModal}
         booking={selectedBooking}
         currentUserId={null}
-        onClose={handleCloseDetailsModal}
-        onClaimService={handleClaimService}
-        onServeService={handleServeService}
-        onUnclaimService={handleUnclaimService}
-        onUnserveService={handleUnserveService}
+        onClose={() => setShowDetailsModal(false)}
+        onClaimService={async (_instanceId: number) => {}}
+        onServeService={async (_instanceId: number) => {}}
+        onUnclaimService={async (_instanceId: number) => {}}
+        onUnserveService={async (_instanceId: number) => {}}
         claimingServiceId={null}
         servingServiceId={null}
         unclaimingServiceId={null}
@@ -282,121 +262,126 @@ export default function ManageBookings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: scaleDimension(16),
   },
   header: {
-    marginBottom: 20,
+    flexDirection: "row",
+    gap: scaleDimension(12),
+    marginBottom: scaleDimension(16),
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "800",
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: scaleDimension(12),
+    paddingHorizontal: scaleDimension(12),
+    height: scaleDimension(44),
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: scaleDimension(8),
+    fontSize: scaleDimension(14),
     color: "#111827",
-    marginBottom: 4,
-    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    fontWeight: "500",
+  filterButton: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    backgroundColor: "white",
+    borderRadius: scaleDimension(12),
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: scaleDimension(100),
+  },
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: scaleDimension(12),
+  },
+  listTitle: {
+    fontSize: scaleDimension(18),
+    fontWeight: "800",
+    color: "#111827",
+  },
+  listCount: {
+    fontSize: scaleDimension(12),
+    color: "#6b7280",
+    fontWeight: "500",
   },
   bookingWrapper: {
-    marginBottom: 16,
+    zIndex: 1, // Needed for dropdown to show on top if overlaps
+  },
+  menuContainer: {
     position: "relative",
+    zIndex: 999,
   },
-  actionsContainer: {
+  menuButton: {
+    padding: scaleDimension(4),
+  },
+  popupMenu: {
     position: "absolute",
-    top: 16,
-    right: 16,
-    zIndex: 10,
-  },
-  actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  actionsMenu: {
-    position: "absolute",
-    top: 44,
+    top: scaleDimension(24),
     right: 0,
     backgroundColor: "white",
-    borderRadius: 12,
-    minWidth: 180,
-    paddingVertical: 8,
+    borderRadius: scaleDimension(12),
+    padding: scaleDimension(4),
+    minWidth: scaleDimension(120),
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
       },
       android: {
         elevation: 5,
       },
     }),
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
   },
-  actionMenuItem: {
+  popupMenuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    gap: scaleDimension(8),
+    paddingVertical: scaleDimension(10),
+    paddingHorizontal: scaleDimension(12),
+    borderRadius: scaleDimension(8),
   },
-  actionMenuItemDanger: {
-    // Additional styling if needed
-  },
-  actionMenuItemDisabled: {
-    opacity: 0.5,
-  },
-  actionMenuText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#111827",
-  },
-  actionMenuTextDanger: {
-    color: "#ef4444",
-  },
-  actionMenuTextDisabled: {
-    color: "#9ca3af",
-  },
-  actionMenuDivider: {
+  menuDivider: {
     height: 1,
     backgroundColor: "#f3f4f6",
-    marginVertical: 4,
+    marginVertical: scaleDimension(2),
+  },
+  popupMenuText: {
+    fontSize: scaleDimension(14),
+    fontWeight: "500",
+    color: "#374151",
+  },
+  popupMenuTextDanger: {
+    color: "#ef4444",
   },
   retryButton: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    marginTop: scaleDimension(16),
+    paddingHorizontal: scaleDimension(24),
+    paddingVertical: scaleDimension(12),
     backgroundColor: "#ec4899",
-    borderRadius: 12,
+    borderRadius: scaleDimension(12),
     alignSelf: "center",
   },
   retryButtonText: {
     color: "white",
-    fontSize: 16,
+    fontSize: scaleDimension(16),
     fontWeight: "600",
   },
 });

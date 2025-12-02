@@ -8,6 +8,10 @@ import {
 } from "@/lib/actions/attendanceActions";
 import { formatCurrency } from "@/lib/utils/currency";
 import {
+  getPhilippineDate,
+  getPhilippineDateObject,
+} from "@/lib/utils/dateTime";
+import {
   getContainerPadding,
   PLATFORM,
   scaleDimension,
@@ -15,7 +19,7 @@ import {
 import { getRoleName } from "@/lib/utils/role";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, XCircle } from "lucide-react-native";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { queryClient } from "../Providers/TanstackProvider";
 import { useToast } from "../ui/toast";
@@ -56,26 +60,14 @@ function EmployeeAttendanceItem({
     <View style={styles.employeeCard}>
       <View style={styles.employeeInfo}>
         <View style={styles.employeeMain}>
-          <ResponsiveText
-            variant="lg"
-            style={styles.employeeName}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="lg" style={styles.employeeName}>
             {displayName}
           </ResponsiveText>
-          <ResponsiveText
-            variant="xs"
-            style={styles.employeeRole}
-            numberOfLines={1}
-          >
+          <ResponsiveText variant="xs" style={styles.employeeRole}>
             {roleDisplay}
           </ResponsiveText>
           {employee.daily_rate > 0 && (
-            <ResponsiveText
-              variant="xs"
-              style={styles.dailyRate}
-              numberOfLines={1}
-            >
+            <ResponsiveText variant="xs" style={styles.dailyRate}>
               Daily Rate: {dailyRateDisplay}
             </ResponsiveText>
           )}
@@ -97,22 +89,14 @@ function EmployeeAttendanceItem({
             ) : isPresent ? (
               <>
                 <CheckCircle2 size={iconSize} color="white" />
-                <ResponsiveText
-                  variant="sm"
-                  style={styles.toggleButtonText}
-                  numberOfLines={1}
-                >
+                <ResponsiveText variant="sm" style={styles.toggleButtonText}>
                   Present
                 </ResponsiveText>
               </>
             ) : (
               <>
                 <XCircle size={iconSize} color="white" />
-                <ResponsiveText
-                  variant="sm"
-                  style={styles.toggleButtonText}
-                  numberOfLines={1}
-                >
+                <ResponsiveText variant="sm" style={styles.toggleButtonText}>
                   Absent
                 </ResponsiveText>
               </>
@@ -126,7 +110,19 @@ function EmployeeAttendanceItem({
 
 export default function AttendanceManager() {
   const toast = useToast();
-  const today = new Date().toISOString().split("T")[0];
+  const [currentDate, setCurrentDate] = useState(() => getPhilippineDate());
+
+  useEffect(() => {
+    const updateDate = () => {
+      const newDate = getPhilippineDate();
+      setCurrentDate(newDate);
+    };
+    updateDate();
+    const interval = setInterval(updateDate, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const today = currentDate;
 
   const {
     data: employeesData,
@@ -136,6 +132,7 @@ export default function AttendanceManager() {
     queryKey: ["employees-attendance", today],
     queryFn: getAllEmployeesForAttendance,
     refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 
   const markAttendanceMutation = useMutation({
@@ -149,7 +146,6 @@ export default function AttendanceManager() {
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["employees-attendance"] });
-
         toast.success(
           "Attendance Updated",
           result.data?.salary_adjustment
@@ -238,20 +234,14 @@ export default function AttendanceManager() {
   return (
     <View style={[styles.container, { marginHorizontal: containerPadding }]}>
       <View style={styles.sectionHeader}>
-        <ResponsiveText
-          variant="2xl"
-          style={styles.sectionTitle}
-          numberOfLines={1}
-        >
-          Employee Attendance
-        </ResponsiveText>
+        <View style={{ flex: 1 }}>
+          <ResponsiveText variant="2xl" style={styles.sectionTitle}>
+            Employee Attendance
+          </ResponsiveText>
+        </View>
         <View style={styles.dateBadge}>
-          <ResponsiveText
-            variant="xs"
-            style={styles.dateText}
-            numberOfLines={1}
-          >
-            {new Date().toLocaleDateString("en-US", {
+          <ResponsiveText variant="xs" style={styles.dateText}>
+            {getPhilippineDateObject().toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
               year: "numeric",
@@ -272,11 +262,7 @@ export default function AttendanceManager() {
       </View>
 
       <View style={styles.summaryContainer}>
-        <ResponsiveText
-          variant="md"
-          style={styles.summaryText}
-          numberOfLines={1}
-        >
+        <ResponsiveText variant="md" style={styles.summaryText}>
           Present: {employees.filter((e) => e.attendance?.is_present).length} /{" "}
           {employees.length}
         </ResponsiveText>
@@ -292,7 +278,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "center", // Align center vertically
     marginBottom: scaleDimension(20),
     paddingHorizontal: scaleDimension(4),
   },
@@ -300,6 +286,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.5,
+    flexWrap: "wrap", // Allow title wrap
   },
   dateBadge: {
     backgroundColor: "#fdf2f8",
@@ -308,6 +295,7 @@ const styles = StyleSheet.create({
     borderRadius: scaleDimension(16),
     borderWidth: 1.5,
     borderColor: "#ec4899",
+    marginLeft: scaleDimension(8), // Add margin for safety
   },
   dateText: {
     color: "#ec4899",
@@ -327,29 +315,31 @@ const styles = StyleSheet.create({
   employeeInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "center", // Changed to flex-start for multi-line support
   },
   employeeMain: {
-    flex: 1,
-    minWidth: 0,
+    flex: 1, // Takes available space
+    marginRight: scaleDimension(8), // Space between text and button
   },
   employeeName: {
     fontWeight: "700",
     color: "#111827",
     marginBottom: scaleDimension(6),
     letterSpacing: -0.3,
+    flexWrap: "wrap", // Enable wrapping
   },
   employeeRole: {
     color: "#6b7280",
     marginBottom: scaleDimension(6),
     fontWeight: "600",
+    flexWrap: "wrap",
   },
   dailyRate: {
     color: "#ec4899",
     fontWeight: "700",
   },
   employeeRight: {
-    marginLeft: scaleDimension(12),
+    // Keep button size stable
   },
   toggleButton: {
     flexDirection: "row",
@@ -374,32 +364,6 @@ const styles = StyleSheet.create({
   toggleButtonText: {
     color: "white",
     fontWeight: "600",
-  },
-  loadingContainer: {
-    padding: scaleDimension(40),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    marginTop: scaleDimension(12),
-    color: "#6b7280",
-  },
-  errorContainer: {
-    padding: scaleDimension(40),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  errorText: {
-    color: "#ef4444",
-    textAlign: "center",
-  },
-  emptyContainer: {
-    padding: scaleDimension(40),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: {
-    color: "#6b7280",
   },
   summaryContainer: {
     marginTop: scaleDimension(16),
