@@ -22,7 +22,11 @@ import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import DiscountFormModal from "./DiscountFormModal";
 
-export default function ManageDiscounts() {
+export default function ManageDiscounts({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [editingDiscount, setEditingDiscount] =
     useState<DiscountWithServices | null>(null);
@@ -44,6 +48,13 @@ export default function ManageDiscounts() {
     : [];
 
   const activeDiscount = discounts.find((d) => d.status === "ACTIVE");
+
+  // Expose refetch function to parent
+  React.useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(() => refetchDiscounts());
+    }
+  }, [onRefetchReady, refetchDiscounts]);
 
   const deleteMutation = useMutation({
     mutationFn: deleteDiscountAction,

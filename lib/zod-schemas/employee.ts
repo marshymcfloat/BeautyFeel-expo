@@ -6,6 +6,7 @@ export const employeeSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters")
     .optional(),
   role: z.enum(["OWNER", "CASHIER", "MASSEUSE", "WORKER"]),
+  branch: z.enum(["NAILS", "SKIN", "LASHES", "MASSAGE"]).nullable().optional(),
   salary: z.coerce.number().min(0, "Salary must be 0 or greater").default(0),
   commission_rate: z.coerce
     .number()

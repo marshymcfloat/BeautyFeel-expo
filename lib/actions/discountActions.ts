@@ -59,9 +59,9 @@ export async function getAllDiscounts() {
 }
 
 /**
- * Get active discount
+ * Get active discounts
  */
-export async function getActiveDiscount() {
+export async function getActiveDiscounts() {
     try {
         await updateExpiredDiscounts();
 
@@ -84,22 +84,22 @@ export async function getActiveDiscount() {
       `,
             )
             .eq("status", "ACTIVE")
-            .maybeSingle();
+            .order("created_at", { ascending: false });
 
         if (error) {
-            console.error("Error fetching active discount:", error);
+            console.error("Error fetching active discounts:", error);
             return {
                 success: false,
-                error: error.message || "Failed to fetch active discount",
+                error: error.message || "Failed to fetch active discounts",
             };
         }
 
         return {
             success: true,
-            data: data as DiscountWithServices | null,
+            data: (data || []) as DiscountWithServices[],
         };
     } catch (error) {
-        console.error("Unexpected error fetching active discount:", error);
+        console.error("Unexpected error fetching active discounts:", error);
         return {
             success: false,
             error: "An unexpected error occurred",

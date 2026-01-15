@@ -18,6 +18,7 @@ import React, { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -57,7 +58,8 @@ export default function BookingEditModal({
   const form = useForm<UpdateBookingSchema>({
     resolver: zodResolver(updateBookingSchema),
     defaultValues: {
-      appointmentDate: booking?.appointment_date || formatDateString(new Date()),
+      appointmentDate:
+        booking?.appointment_date || formatDateString(new Date()),
       appointmentTime: booking?.appointment_time || "09:00",
       notes: booking?.notes || "",
       status: (booking?.status as any) || "PENDING",
@@ -116,135 +118,138 @@ export default function BookingEditModal({
       onRequestClose={onClose}
     >
       {booking ? (
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.overlay}
+        >
           <View style={styles.modal}>
-          {/* Header */}
-          <LinearGradient
-            colors={["#ec4899", "#d946ef", "#a855f7"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.header}
-          >
-            <View style={styles.headerContent}>
-              <Text style={styles.headerTitle}>Edit Booking</Text>
-              <Pressable onPress={onClose} style={styles.closeButton}>
-                <X size={24} color="white" />
+            {/* Header */}
+            <LinearGradient
+              colors={["#ec4899", "#d946ef", "#a855f7"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.header}
+            >
+              <View style={styles.headerContent}>
+                <Text style={styles.headerTitle}>Edit Booking</Text>
+                <Pressable onPress={onClose} style={styles.closeButton}>
+                  <X size={24} color="white" />
+                </Pressable>
+              </View>
+              <View style={styles.headerSubtitle}>
+                <Text style={styles.headerSubtitleText}>
+                  {booking.customer?.name || "Unknown Customer"}
+                </Text>
+              </View>
+            </LinearGradient>
+
+            <ScrollView
+              style={styles.content}
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Date Picker */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Appointment Date</Text>
+                <DatePicker
+                  // Ensure value is never undefined
+                  value={selectedDate || formatDateString(new Date())}
+                  onChange={(date) => {
+                    setValue("appointmentDate", date);
+                  }}
+                />
+              </View>
+
+              {/* Time Picker */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Appointment Time</Text>
+                <TimePicker
+                  // Ensure value is never undefined
+                  value={selectedTime || "09:00"}
+                  onChange={(time) => {
+                    setValue("appointmentTime", time);
+                  }}
+                />
+              </View>
+
+              {/* Status */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Status</Text>
+                <View style={styles.statusContainer}>
+                  {STATUS_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setValue("status", option.value as any)}
+                      style={[
+                        styles.statusOption,
+                        selectedStatus === option.value &&
+                          styles.statusOptionActive,
+                      ]}
+                    >
+                      {/* FIXED: Removed type="booking" prop */}
+                      <StatusBadge status={option.value as any} />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Notes */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Notes</Text>
+                <Controller
+                  control={control}
+                  name="notes"
+                  render={({
+                    field: { onChange, onBlur, value },
+                    fieldState: { error },
+                  }) => (
+                    <View>
+                      <TextInput
+                        style={[
+                          styles.notesInput,
+                          error && styles.notesInputError,
+                        ]}
+                        placeholder="Add any notes about this booking..."
+                        placeholderTextColor="#9CA3AF"
+                        multiline
+                        numberOfLines={4}
+                        textAlignVertical="top"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value || ""}
+                      />
+                      {error && (
+                        <Text style={styles.errorText}>{error.message}</Text>
+                      )}
+                    </View>
+                  )}
+                />
+              </View>
+            </ScrollView>
+
+            {/* Actions */}
+            <View style={styles.actions}>
+              <Pressable
+                onPress={onClose}
+                style={[styles.actionButton, styles.cancelButton]}
+                disabled={updateMutation.isPending}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSubmit(onSubmit)}
+                style={[styles.actionButton, styles.saveButton]}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
               </Pressable>
             </View>
-            <View style={styles.headerSubtitle}>
-              <Text style={styles.headerSubtitleText}>
-                {booking.customer?.name || "Unknown Customer"}
-              </Text>
-            </View>
-          </LinearGradient>
-
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Date Picker */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Appointment Date</Text>
-              <DatePicker
-                // Ensure value is never undefined
-                value={selectedDate || formatDateString(new Date())}
-                onChange={(date) => {
-                  setValue("appointmentDate", date);
-                }}
-              />
-            </View>
-
-            {/* Time Picker */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Appointment Time</Text>
-              <TimePicker
-                // Ensure value is never undefined
-                value={selectedTime || "09:00"}
-                onChange={(time) => {
-                  setValue("appointmentTime", time);
-                }}
-              />
-            </View>
-
-            {/* Status */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Status</Text>
-              <View style={styles.statusContainer}>
-                {STATUS_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setValue("status", option.value as any)}
-                    style={[
-                      styles.statusOption,
-                      selectedStatus === option.value &&
-                        styles.statusOptionActive,
-                    ]}
-                  >
-                    {/* FIXED: Removed type="booking" prop */}
-                    <StatusBadge status={option.value as any} />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Notes */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Notes</Text>
-              <Controller
-                control={control}
-                name="notes"
-                render={({
-                  field: { onChange, onBlur, value },
-                  fieldState: { error },
-                }) => (
-                  <View>
-                    <TextInput
-                      style={[
-                        styles.notesInput,
-                        error && styles.notesInputError,
-                      ]}
-                      placeholder="Add any notes about this booking..."
-                      placeholderTextColor="#9CA3AF"
-                      multiline
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                      onBlur={onBlur}
-                      onChangeText={onChange}
-                      value={value || ""}
-                    />
-                    {error && (
-                      <Text style={styles.errorText}>{error.message}</Text>
-                    )}
-                  </View>
-                )}
-              />
-            </View>
-          </ScrollView>
-
-          {/* Actions */}
-          <View style={styles.actions}>
-            <Pressable
-              onPress={onClose}
-              style={[styles.actionButton, styles.cancelButton]}
-              disabled={updateMutation.isPending}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleSubmit(onSubmit)}
-              style={[styles.actionButton, styles.saveButton]}
-              disabled={updateMutation.isPending}
-            >
-              {updateMutation.isPending ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              )}
-            </Pressable>
           </View>
-        </View>
-      </View>
+        </KeyboardAvoidingView>
       ) : null}
     </Modal>
   );

@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   type EmployeeWithRole,
   getEmployeeByUserId,
@@ -28,20 +28,35 @@ export function useAuth(): AuthUser {
   const [user, setUser] = useState<User | null>(null);
   const [employee, setEmployee] = useState<EmployeeWithRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const fetchingEmployeeRef = React.useRef<Set<string>>(new Set());
 
   const fetchEmployeeData = useCallback(async (userId: string) => {
+    if (!userId) {
+      setEmployee(null);
+      return;
+    }
+
+    // Prevent duplicate fetches for the same user using ref
+    if (fetchingEmployeeRef.current.has(userId)) {
+      return;
+    }
+
+    fetchingEmployeeRef.current.add(userId);
+
     try {
       const result = await getEmployeeByUserId(userId);
-      if (result.success && result.data) {
-        setEmployee(result.data);
-      } else {
-        // No employee record found - this is OK, just set to null
-        setEmployee(null);
-      }
+      // Always set employee based on result, even if null
+      // This prevents infinite loops by ensuring state is always updated
+      setEmployee(result.data || null);
     } catch (error) {
-      console.error("Error fetching employee data:", error);
-      // Don't block on employee data fetch failure - set to null and continue
+      // Silently handle errors - employee data is optional
       setEmployee(null);
+    } finally {
+      // Keep userId in set for a short time to prevent rapid re-fetches
+      // This helps prevent spam when server is down
+      setTimeout(() => {
+        fetchingEmployeeRef.current.delete(userId);
+      }, 10000); // Wait 10 seconds before allowing re-fetch
     }
   }, []);
 
@@ -49,40 +64,58 @@ export function useAuth(): AuthUser {
     let mounted = true;
     let timeoutId: NodeJS.Timeout | null = null;
     let hasInitialized = false;
+    let isUpdatingState = false;
+    let lastUpdateUserId: string | null = null;
 
     // Helper function to update user state
     const updateUserState = async (session: any) => {
       if (!mounted) return;
-
-      console.log("updateUserState called, has session:", !!session);
+      
+      // Don't process if already updating (unless it's a different user)
       const currentUser = session?.user ?? null;
+      const currentUserId = currentUser?.id ?? null;
+      
+      if (isUpdatingState && lastUpdateUserId === currentUserId) {
+        return;
+      }
+
+      isUpdatingState = true;
+      lastUpdateUserId = currentUserId;
 
       if (currentUser) {
-        console.log("Session has user, ID:", currentUser.id);
         try {
           // Set user immediately from session (don't wait for verification)
           if (mounted) {
-            console.log("Setting user from session immediately");
             setUser(currentUser);
             setLoading(false);
           }
 
-          // Verify the session in background (don't block)
+          // Verify the session in background (don't block) - but catch errors gracefully
           supabase.auth.getUser().then(
             ({ data: { user: verifiedUser }, error: verifyError }) => {
               if (!mounted) return;
 
-              if (verifyError || !verifiedUser) {
-                console.error("User verification failed:", verifyError);
-                // Only sign out if there's a real error, not just a delay
-                if (
-                  verifyError && verifyError.message !== "session_not_found"
-                ) {
-                  supabase.auth.signOut();
-                  setUser(null);
-                  setEmployee(null);
-                  setLoading(false);
+              // Handle JSON parse errors and 500 errors gracefully
+              if (verifyError) {
+                const errorMsg = verifyError.message || "";
+                if (errorMsg.includes("JSON Parse") || errorMsg.includes("<html>") || errorMsg.includes("500")) {
+                  // Silently handle server errors - they're expected during server issues
+                  // Don't sign out on server errors, just use the session user
+                  isUpdatingState = false;
+                  return;
                 }
+                
+                // Only sign out on real auth errors
+                if (verifyError.message !== "session_not_found") {
+                  console.error("User verification failed:", verifyError);
+                  supabase.auth.signOut().catch(() => {});
+                  if (mounted) {
+                    setUser(null);
+                    setEmployee(null);
+                    setLoading(false);
+                  }
+                }
+                isUpdatingState = false;
                 return;
               }
 
@@ -90,22 +123,32 @@ export function useAuth(): AuthUser {
               if (
                 mounted && verifiedUser && verifiedUser.id !== currentUser.id
               ) {
-                console.log("Updating with verified user");
                 setUser(verifiedUser);
+                // Fetch employee for verified user if different
+                // Only fetch if we haven't already fetched for this user
+                if (!fetchingEmployeeRef.current.has(verifiedUser.id)) {
+                  fetchEmployeeData(verifiedUser.id).catch(() => {
+                    if (mounted) setEmployee(null);
+                  });
+                }
               }
+              isUpdatingState = false;
             },
           ).catch((error) => {
-            console.error("Error in background user verification:", error);
-            // Don't block on verification errors
+            // Silently handle verification errors - continue with session user
+            isUpdatingState = false;
           });
 
           // Fetch employee data in background - don't block redirect
-          fetchEmployeeData(currentUser.id).catch((err) => {
-            console.error("Error fetching employee data:", err);
-            if (mounted) {
-              setEmployee(null);
-            }
-          });
+          // Only fetch if we haven't already fetched for this user
+          if (!fetchingEmployeeRef.current.has(currentUser.id)) {
+            fetchEmployeeData(currentUser.id).catch((err) => {
+              // Silently handle errors - employee data is optional
+              if (mounted) {
+                setEmployee(null);
+              }
+            });
+          }
         } catch (error) {
           console.error("Error in updateUserState:", error);
           if (mounted) {
@@ -113,6 +156,7 @@ export function useAuth(): AuthUser {
             setEmployee(null);
             setLoading(false);
           }
+          isUpdatingState = false;
         }
       } else {
         console.log("No user in session, clearing state");
@@ -121,6 +165,8 @@ export function useAuth(): AuthUser {
           setEmployee(null);
           setLoading(false);
         }
+        isUpdatingState = false;
+        lastUpdateUserId = null;
       }
     };
 
@@ -178,7 +224,10 @@ export function useAuth(): AuthUser {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log("Auth state changed:", event, "Has session:", !!session);
+      // Only log important events to reduce noise
+      if (event !== "INITIAL_SESSION") {
+        console.log("Auth state changed:", event, "Has session:", !!session);
+      }
 
       // Clear timeout since we got an auth state change
       if (timeoutId) {
@@ -187,17 +236,40 @@ export function useAuth(): AuthUser {
       }
 
       // Handle specific events
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        await updateUserState(session);
-      } else if (event === "SIGNED_OUT") {
+      if (event === "SIGNED_OUT") {
+        // Always allow sign out - reset all flags and state immediately
+        isUpdatingState = false;
+        lastUpdateUserId = null;
+        fetchingEmployeeRef.current.clear();
+        hasInitialized = false; // Reset initialization flag
         if (mounted) {
           setUser(null);
           setEmployee(null);
           setLoading(false);
         }
-      } else {
-        // For other events, update state normally
+        // Don't call updateUserState for sign out
+        return;
+      } else if (event === "INITIAL_SESSION") {
+        // Only process INITIAL_SESSION once - ignore subsequent INITIAL_SESSION events
+        if (!hasInitialized) {
+          // Reset flags before processing initial session
+          isUpdatingState = false;
+          lastUpdateUserId = null;
+          await updateUserState(session);
+          hasInitialized = true;
+        }
+        // Don't process INITIAL_SESSION if already initialized
+      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        // Reset flags for new sign-in
+        isUpdatingState = false;
+        lastUpdateUserId = null;
+        fetchingEmployeeRef.current.clear();
         await updateUserState(session);
+      } else {
+        // For other events, only update if not already updating
+        if (!isUpdatingState) {
+          await updateUserState(session);
+        }
       }
     });
 

@@ -43,7 +43,11 @@ type VoucherWithCustomer = {
   } | null;
 };
 
-export default function ManageVouchers() {
+export default function ManageVouchers({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const toast = useToast();
 
@@ -61,6 +65,13 @@ export default function ManageVouchers() {
   const vouchers: VoucherWithCustomer[] = vouchersData?.success
     ? (vouchersData.data as VoucherWithCustomer[]) || []
     : [];
+
+  // Expose refetch function to parent
+  React.useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(() => refetchVouchers());
+    }
+  }, [onRefetchReady, refetchVouchers]);
 
   const deleteMutation = useMutation({
     mutationFn: deleteVoucherAction,

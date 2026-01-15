@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
+import type { Database } from "@/database.types";
 import {
   getAllEmployeesForAttendance,
   markAttendanceAction,
@@ -18,11 +19,14 @@ import {
 } from "@/lib/utils/responsive";
 import { getRoleName } from "@/lib/utils/role";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, XCircle } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { CheckCircle2, Clock, XCircle } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-native";
 import { queryClient } from "../Providers/TanstackProvider";
 import { useToast } from "../ui/toast";
+
+type Branch = Database["public"]["Enums"]["branch"];
 
 interface EmployeeAttendanceItemProps {
   employee: {
@@ -108,7 +112,7 @@ function EmployeeAttendanceItem({
   );
 }
 
-export default function AttendanceManager() {
+export default function AttendanceManager({ ownerBranch }: { ownerBranch?: Branch | null }) {
   const toast = useToast();
   const [currentDate, setCurrentDate] = useState(() => getPhilippineDate());
 
@@ -129,8 +133,8 @@ export default function AttendanceManager() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["employees-attendance", today],
-    queryFn: getAllEmployeesForAttendance,
+    queryKey: ["employees-attendance", today, ownerBranch],
+    queryFn: () => getAllEmployeesForAttendance(ownerBranch || null),
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
@@ -233,21 +237,30 @@ export default function AttendanceManager() {
 
   return (
     <View style={[styles.container, { marginHorizontal: containerPadding }]}>
-      <View style={styles.sectionHeader}>
-        <View style={{ flex: 1 }}>
-          <ResponsiveText variant="2xl" style={styles.sectionTitle}>
-            Employee Attendance
-          </ResponsiveText>
-        </View>
-        <View style={styles.dateBadge}>
-          <ResponsiveText variant="xs" style={styles.dateText}>
-            {getPhilippineDateObject().toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </ResponsiveText>
-        </View>
+      <View style={styles.header}>
+        <LinearGradient
+          colors={["#fdf2f8", "#fce7f3"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.sectionHeader}>
+            <View style={{ flex: 1 }}>
+              <ResponsiveText variant="2xl" style={styles.sectionTitle}>
+                Employee Attendance
+              </ResponsiveText>
+            </View>
+            <View style={styles.dateBadge}>
+              <ResponsiveText variant="xs" style={styles.dateText}>
+                {getPhilippineDateObject().toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </ResponsiveText>
+            </View>
+          </View>
+        </LinearGradient>
       </View>
 
       <View style={styles.attendanceList}>
@@ -307,10 +320,20 @@ const styles = StyleSheet.create({
   employeeCard: {
     backgroundColor: "white",
     borderRadius: scaleDimension(20),
-    padding: scaleDimension(20),
-    borderWidth: 1,
+    padding: scaleDimension(24),
+    borderWidth: 1.5,
     borderColor: "#f3f4f6",
-    ...PLATFORM.shadowMd,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   employeeInfo: {
     flexDirection: "row",
@@ -344,13 +367,23 @@ const styles = StyleSheet.create({
   toggleButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: scaleDimension(18),
-    paddingVertical: scaleDimension(12),
+    paddingHorizontal: scaleDimension(20),
+    paddingVertical: scaleDimension(14),
     borderRadius: scaleDimension(14),
     gap: scaleDimension(8),
-    minWidth: scaleDimension(110),
+    minWidth: scaleDimension(120),
     justifyContent: "center",
-    ...PLATFORM.shadow,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   toggleButtonPresent: {
     backgroundColor: "#10b981",
@@ -366,16 +399,47 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   summaryContainer: {
-    marginTop: scaleDimension(16),
-    padding: scaleDimension(16),
+    marginTop: scaleDimension(20),
+    padding: scaleDimension(20),
     backgroundColor: "#fdf2f8",
-    borderRadius: scaleDimension(16),
+    borderRadius: scaleDimension(18),
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: "#fce7f3",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#ec4899",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   summaryText: {
     color: "#ec4899",
     fontWeight: "700",
+    fontSize: scaleDimension(16),
+  },
+  header: {
+    marginBottom: scaleDimension(24),
+    borderRadius: scaleDimension(20),
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  headerGradient: {
+    padding: scaleDimension(20),
   },
 });

@@ -16,7 +16,9 @@ import React, { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -307,7 +309,10 @@ export default function ServiceSetFormModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modalContent}>
           <ScrollView
@@ -643,7 +648,7 @@ export default function ServiceSetFormModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

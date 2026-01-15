@@ -12,6 +12,7 @@ import { ArrowRight, Sparkles, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -101,12 +102,14 @@ export default function Index() {
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.loadingContainer}>
-          <View style={styles.logoIconContainerSmall}>
-            <LinearGradient
-              colors={["#ec4899", "#d946ef"]}
-              style={StyleSheet.absoluteFill}
-            />
-            <Sparkles size={24} color="white" />
+          <View style={styles.logoIconShadowWrapper}>
+            <View style={styles.logoIconContainerSmall}>
+              <LinearGradient
+                colors={["#ec4899", "#d946ef"]}
+                style={StyleSheet.absoluteFill}
+              />
+              <Sparkles size={24} color="white" />
+            </View>
           </View>
           <ActivityIndicator
             size="large"
@@ -169,14 +172,16 @@ export default function Index() {
           {/* Glass Card Effect */}
           <View style={styles.glassCard}>
             <View style={styles.logoWrapper}>
-              <View style={styles.logoIconContainer}>
-                <LinearGradient
-                  colors={["#ec4899", "#a855f7"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <Sparkles size={40} color="white" />
+              <View style={styles.logoIconShadowWrapper}>
+                <View style={styles.logoIconContainer}>
+                  <LinearGradient
+                    colors={["#ec4899", "#a855f7"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Sparkles size={40} color="white" />
+                </View>
               </View>
             </View>
 
@@ -199,21 +204,28 @@ export default function Index() {
         {/* Bottom Action */}
         <View style={styles.bottomSection}>
           <Pressable
+            onPress={() => setShowAuthModal(true)}
             style={({ pressed }) => [
-              styles.getStartedButton,
               pressed && { transform: [{ scale: 0.98 }] },
             ]}
-            onPress={() => setShowAuthModal(true)}
           >
-            <LinearGradient
-              colors={["#ec4899", "#d946ef", "#a855f7"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.getStartedGradient}
-            >
-              <Text style={styles.getStartedText}>Get Started</Text>
-              <ArrowRight size={20} color="white" style={{ marginLeft: 8 }} />
-            </LinearGradient>
+            <View style={styles.getStartedButtonShadowWrapper}>
+              <View style={styles.getStartedButton}>
+                <LinearGradient
+                  colors={["#ec4899", "#d946ef", "#a855f7"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.getStartedGradient}
+                >
+                  <Text style={styles.getStartedText}>Get Started</Text>
+                  <ArrowRight
+                    size={20}
+                    color="white"
+                    style={{ marginLeft: 8 }}
+                  />
+                </LinearGradient>
+              </View>
+            </View>
           </Pressable>
           <Text style={styles.versionText}>
             v1.0.0 • Employee & Owner Access
@@ -229,7 +241,10 @@ export default function Index() {
         statusBarTranslucent
         onRequestClose={() => setShowAuthModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           {/* Backdrop Pressable */}
           <Pressable
             style={StyleSheet.absoluteFill}
@@ -252,7 +267,7 @@ export default function Index() {
               <LazyLoginForm onSuccess={setShowAuthModal} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -368,6 +383,15 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
       },
       android: {
+        // Elevation handled by wrapper
+      },
+    }),
+  },
+  logoIconShadowWrapper: {
+    backgroundColor: "white", // Needed for elevation shadow to render
+    borderRadius: 24,
+    ...Platform.select({
+      android: {
         elevation: 6,
       },
     }),
@@ -422,9 +446,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: scaleDimension(48),
   },
-  getStartedButton: {
+  getStartedButtonShadowWrapper: {
     borderRadius: 20,
-    overflow: "hidden",
+    backgroundColor: "white", // Needed for elevation
     ...Platform.select({
       ios: {
         shadowColor: "#ec4899",
@@ -436,6 +460,10 @@ const styles = StyleSheet.create({
         elevation: 8,
       },
     }),
+  },
+  getStartedButton: {
+    borderRadius: 20,
+    overflow: "hidden",
   },
   getStartedGradient: {
     paddingVertical: 18,

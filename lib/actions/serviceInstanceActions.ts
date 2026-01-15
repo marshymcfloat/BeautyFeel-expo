@@ -1,5 +1,6 @@
 import type { Tables, TablesUpdate } from "../../database.types";
 import { supabase } from "../utils/supabase";
+import { markAppointmentAttended } from "./appointmentSessionActions";
 import {
   applyCommissionsForBooking,
   checkAllServicesServedForMinute,
@@ -232,12 +233,45 @@ export async function serveServiceInstanceAction(
             completed_at: now,
           })
           .eq("id", bookingId);
+
+        // Check if this booking is linked to an appointment session
+        // If so, mark the appointment step as attended
+        const { data: sessionBooking } = await supabase
+          .from("appointment_session_bookings")
+          .select("session_id, step_order")
+          .eq("booking_id", bookingId)
+          .maybeSingle();
+
+        if (sessionBooking) {
+          // Mark appointment as attended
+          const attendanceResult = await markAppointmentAttended(
+            sessionBooking.session_id,
+            bookingId,
+          );
+
+          if (attendanceResult.success) {
+            console.log(
+              `✅ Marked appointment step ${sessionBooking.step_order} as attended for session ${sessionBooking.session_id}`,
+            );
+            // Return customer_id so the caller can invalidate the query
+            return {
+              success: true,
+              data: updated,
+              customerId: attendanceResult.customerId || null,
+            };
+          } else {
+            console.error(
+              `❌ Failed to mark appointment as attended: ${attendanceResult.error}`,
+            );
+          }
+        }
       }
     }
 
     return {
       success: true,
       data: updated,
+      customerId: null, // No appointment session linked
     };
   } catch (error) {
     console.error("Unexpected error serving service instance:", error);

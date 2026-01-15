@@ -22,10 +22,11 @@ import {
   Search,
   Trash2,
 } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -35,7 +36,11 @@ import {
   View,
 } from "react-native";
 
-export default function ManageBookings() {
+export default function ManageBookings({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [selectedBooking, setSelectedBooking] =
     useState<BookingWithServices | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -66,6 +71,13 @@ export default function ManageBookings() {
     if (!bookings || bookings.length === 0) return [];
     return sortBookings(bookings as unknown as BookingWithServices[]);
   }, [bookings]);
+
+  // Expose refetch function to parent
+  useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(() => refetch());
+    }
+  }, [onRefetchReady, refetch]);
 
   const handleViewDetails = (booking: BookingWithServices) => {
     setSelectedBooking(booking);
@@ -136,126 +148,131 @@ export default function ManageBookings() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Search & Filter Header (Visual Only for now) */}
-      <View style={[styles.header, { paddingHorizontal: containerPadding }]}>
-        <View style={styles.searchContainer}>
-          <Search size={20} color="#9ca3af" />
-          <TextInput
-            placeholder="Search bookings..."
-            style={styles.searchInput}
-            placeholderTextColor="#9ca3af"
-          />
-        </View>
-        <Pressable style={styles.filterButton}>
-          <Filter size={20} color="#6b7280" />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingHorizontal: containerPadding },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>All Bookings</Text>
-          <Text style={styles.listCount}>
-            {bookings.length} result{bookings.length !== 1 ? "s" : ""}
-          </Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
+        {/* Search & Filter Header (Visual Only for now) */}
+        <View style={[styles.header, { paddingHorizontal: containerPadding }]}>
+          <View style={styles.searchContainer}>
+            <Search size={20} color="#9ca3af" />
+            <TextInput
+              placeholder="Search bookings..."
+              style={styles.searchInput}
+              placeholderTextColor="#9ca3af"
+            />
+          </View>
+          <Pressable style={styles.filterButton}>
+            <Filter size={20} color="#6b7280" />
+          </Pressable>
         </View>
 
-        {bookings.length === 0 ? (
-          <EmptyState
-            icon={<Calendar size={48} color="#9ca3af" />}
-            title="No bookings found"
-            message="There are no bookings in the system yet."
-          />
-        ) : (
-          sortedBookings.map((booking) => (
-            <View
-              key={booking.id}
-              style={styles.bookingWrapper}
-              className="my-2"
-            >
-              <BookingCard
-                booking={booking}
-                currentUserId={null}
-                onClaimService={async (_instanceId: number) => {}}
-                onServeService={async (_instanceId: number) => {}}
-                onViewDetails={handleViewDetails}
-                // Inject the Menu Button into the Card Header
-                renderHeaderRight={() => (
-                  <View style={styles.menuContainer}>
-                    <Pressable
-                      style={styles.menuButton}
-                      hitSlop={10}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        setExpandedBookingId(
-                          expandedBookingId === booking.id ? null : booking.id
-                        );
-                      }}
-                    >
-                      <MoreVertical size={20} color="#9ca3af" />
-                    </Pressable>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingHorizontal: containerPadding },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.listHeader}>
+            <Text style={styles.listTitle}>All Bookings</Text>
+            <Text style={styles.listCount}>
+              {bookings.length} result{bookings.length !== 1 ? "s" : ""}
+            </Text>
+          </View>
 
-                    {expandedBookingId === booking.id && (
-                      <View style={styles.popupMenu}>
-                        <Pressable
-                          style={styles.popupMenuItem}
-                          onPress={() => handleViewDetails(booking)}
-                        >
-                          <Eye size={16} color="#3b82f6" />
-                          <Text style={styles.popupMenuText}>View</Text>
-                        </Pressable>
-                        <View style={styles.menuDivider} />
-                        <Pressable
-                          style={styles.popupMenuItem}
-                          onPress={() => handleDeleteBooking(booking)}
-                        >
-                          {deleteMutation.isPending &&
-                          deleteMutation.variables === booking.id ? (
-                            <ActivityIndicator size="small" color="#ef4444" />
-                          ) : (
-                            <Trash2 size={16} color="#ef4444" />
-                          )}
-                          <Text
-                            style={[
-                              styles.popupMenuText,
-                              styles.popupMenuTextDanger,
-                            ]}
+          {bookings.length === 0 ? (
+            <EmptyState
+              icon={<Calendar size={48} color="#9ca3af" />}
+              title="No bookings found"
+              message="There are no bookings in the system yet."
+            />
+          ) : (
+            sortedBookings.map((booking) => (
+              <View
+                key={booking.id}
+                style={styles.bookingWrapper}
+                className="my-2"
+              >
+                <BookingCard
+                  booking={booking}
+                  currentUserId={null}
+                  onClaimService={async (_instanceId: number) => {}}
+                  onServeService={async (_instanceId: number) => {}}
+                  onViewDetails={handleViewDetails}
+                  // Inject the Menu Button into the Card Header
+                  renderHeaderRight={() => (
+                    <View style={styles.menuContainer}>
+                      <Pressable
+                        style={styles.menuButton}
+                        hitSlop={10}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setExpandedBookingId(
+                            expandedBookingId === booking.id ? null : booking.id
+                          );
+                        }}
+                      >
+                        <MoreVertical size={20} color="#9ca3af" />
+                      </Pressable>
+
+                      {expandedBookingId === booking.id && (
+                        <View style={styles.popupMenu}>
+                          <Pressable
+                            style={styles.popupMenuItem}
+                            onPress={() => handleViewDetails(booking)}
                           >
-                            Delete
-                          </Text>
-                        </Pressable>
-                      </View>
-                    )}
-                  </View>
-                )}
-              />
-            </View>
-          ))
-        )}
-      </ScrollView>
+                            <Eye size={16} color="#3b82f6" />
+                            <Text style={styles.popupMenuText}>View</Text>
+                          </Pressable>
+                          <View style={styles.menuDivider} />
+                          <Pressable
+                            style={styles.popupMenuItem}
+                            onPress={() => handleDeleteBooking(booking)}
+                          >
+                            {deleteMutation.isPending &&
+                            deleteMutation.variables === booking.id ? (
+                              <ActivityIndicator size="small" color="#ef4444" />
+                            ) : (
+                              <Trash2 size={16} color="#ef4444" />
+                            )}
+                            <Text
+                              style={[
+                                styles.popupMenuText,
+                                styles.popupMenuTextDanger,
+                              ]}
+                            >
+                              Delete
+                            </Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                />
+              </View>
+            ))
+          )}
+        </ScrollView>
 
-      <BookingDetailsModal
-        visible={showDetailsModal}
-        booking={selectedBooking}
-        currentUserId={null}
-        onClose={() => setShowDetailsModal(false)}
-        onClaimService={async (_instanceId: number) => {}}
-        onServeService={async (_instanceId: number) => {}}
-        onUnclaimService={async (_instanceId: number) => {}}
-        onUnserveService={async (_instanceId: number) => {}}
-        claimingServiceId={null}
-        servingServiceId={null}
-        unclaimingServiceId={null}
-        unservingServiceId={null}
-      />
-    </View>
+        <BookingDetailsModal
+          visible={showDetailsModal}
+          booking={selectedBooking}
+          currentUserId={null}
+          onClose={() => setShowDetailsModal(false)}
+          onClaimService={async (_instanceId: number) => {}}
+          onServeService={async (_instanceId: number) => {}}
+          onUnclaimService={async (_instanceId: number) => {}}
+          onUnserveService={async (_instanceId: number) => {}}
+          claimingServiceId={null}
+          servingServiceId={null}
+          unclaimingServiceId={null}
+          unservingServiceId={null}
+        />
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

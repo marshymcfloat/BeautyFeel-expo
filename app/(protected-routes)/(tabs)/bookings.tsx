@@ -4,6 +4,7 @@ import BookingFormModal from "@/components/bookings/BookingFormModal";
 import ClaimGiftCertificateModal from "@/components/bookings/ClaimGiftCertificateModal";
 import { DaySelector } from "@/components/bookings/DaySelector";
 import type { BookingWithServices } from "@/components/bookings/types";
+import { queryClient } from "@/components/Providers/TanstackProvider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { GradientHeader } from "@/components/ui/GradientHeader";
@@ -83,6 +84,8 @@ export default function BookingsScreen() {
         toast.error("Error", result.error || "Failed to claim service");
       } else {
         toast.success("Service Claimed", "Service claimed successfully");
+        // Invalidate bookings query to refresh ManageBookings
+        queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
       }
     } catch (error) {
       console.error("Error claiming service:", error);
@@ -107,6 +110,8 @@ export default function BookingsScreen() {
           "Service Served",
           "Service marked as served successfully"
         );
+        // Invalidate bookings query to refresh ManageBookings
+        queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
       }
     } catch (error) {
       console.error("Error serving service:", error);
@@ -128,6 +133,8 @@ export default function BookingsScreen() {
         toast.error("Error", result.error || "Failed to unclaim service");
       } else {
         toast.success("Service Unclaimed", "Service unclaimed successfully");
+        // Invalidate bookings query to refresh ManageBookings
+        queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
       }
     } catch (error) {
       console.error("Error unclaiming service:", error);
@@ -149,6 +156,8 @@ export default function BookingsScreen() {
         toast.error("Error", result.error || "Failed to unserve service");
       } else {
         toast.success("Service Unserved", "Service unserved successfully");
+        // Invalidate bookings query to refresh ManageBookings
+        queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
       }
     } catch (error) {
       console.error("Error unserving service:", error);
@@ -222,29 +231,6 @@ export default function BookingsScreen() {
     </Pressable>
   );
 
-  const RefreshButton = () => (
-    <Pressable
-      onPress={handleRefetch}
-      disabled={isRefreshing || loading}
-      style={({ pressed }) => [
-        styles.refreshButton,
-        (pressed || isRefreshing || loading) && styles.refreshButtonPressed,
-      ]}
-    >
-      <LinearGradient
-        colors={["rgba(255, 255, 255, 0.25)", "rgba(255, 255, 255, 0.15)"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.refreshButtonGradient}
-      >
-        {isRefreshing || loading ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <RefreshCw size={18} color="white" />
-        )}
-      </LinearGradient>
-    </Pressable>
-  );
 
   return (
     <View style={styles.container}>
@@ -265,7 +251,27 @@ export default function BookingsScreen() {
           icon={<Calendar size={28} color="white" />}
           rightElement={
             <View style={styles.headerButtons}>
-              <RefreshButton />
+              <Pressable
+                onPress={handleRefetch}
+                disabled={isRefreshing || loading}
+                style={({ pressed }) => [
+                  styles.refreshButton,
+                  (pressed || isRefreshing || loading) && styles.refreshButtonPressed,
+                ]}
+              >
+                <LinearGradient
+                  colors={["rgba(255, 255, 255, 0.25)", "rgba(255, 255, 255, 0.15)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.refreshButtonGradient}
+                >
+                  {isRefreshing || loading ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <RefreshCw size={18} color="white" />
+                  )}
+                </LinearGradient>
+              </Pressable>
               <View style={styles.buttonSpacer} />
               <ClaimGiftCertificateButton />
               <View style={styles.buttonSpacer} />

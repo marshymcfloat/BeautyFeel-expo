@@ -1,3 +1,4 @@
+import { queryClient } from "@/components/Providers/TanstackProvider";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -8,9 +9,15 @@ import {
   scaleDimension,
 } from "@/lib/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
-import { Sparkles } from "lucide-react-native";
+import { RefreshCw, Sparkles } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 
 function ComponentLoader() {
   return <LoadingState variant="skeleton" />;
@@ -53,6 +60,7 @@ export default function HomeScreen() {
   const { hasRole, loading } = useAuth();
   const { isTablet, isSmallPhone } = useResponsive();
   const isOwner = hasRole("owner");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   if (loading) {
     return null;
@@ -63,6 +71,24 @@ export default function HomeScreen() {
     if (hour < 12) return "Good Morning";
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
+  };
+
+  const handleRefetch = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["employee-services"] }),
+        queryClient.invalidateQueries({ queryKey: ["employee-salary"] }),
+        queryClient.invalidateQueries({ queryKey: ["my-payslip-requests"] }),
+        queryClient.invalidateQueries({ queryKey: ["unpaid-services"] }),
+        queryClient.invalidateQueries({ queryKey: ["attendance"] }),
+        // Owner dashboard queries
+        queryClient.invalidateQueries({ queryKey: ["owner-stats"] }),
+        queryClient.invalidateQueries({ queryKey: ["all-bookings"] }),
+      ]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
   };
 
   const containerPadding = getContainerPadding();
@@ -106,6 +132,30 @@ export default function HomeScreen() {
                     {isOwner ? "Welcome back, Owner" : "Ready to shine today?"}
                   </ResponsiveText>
                 </View>
+                <Pressable
+                  onPress={handleRefetch}
+                  disabled={isRefreshing}
+                  style={({ pressed }) => [
+                    styles.refreshButton,
+                    (pressed || isRefreshing) && styles.refreshButtonPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[
+                      "rgba(255, 255, 255, 0.25)",
+                      "rgba(255, 255, 255, 0.15)",
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.refreshButtonGradient}
+                  >
+                    {isRefreshing ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <RefreshCw size={18} color="white" />
+                    )}
+                  </LinearGradient>
+                </Pressable>
               </View>
               <View style={styles.decorativeCircle1} />
               <View style={styles.decorativeCircle2} />
@@ -116,19 +166,7 @@ export default function HomeScreen() {
             <>
               <LazyComponent
                 loadComponent={() =>
-                  import("@/components/payslip/PayslipRequestsManager")
-                }
-                fallback={<ComponentLoader />}
-              />
-              <LazyComponent
-                loadComponent={() =>
-                  import("@/components/payslip/EmployeePayslipPermissions")
-                }
-                fallback={<ComponentLoader />}
-              />
-              <LazyComponent
-                loadComponent={() =>
-                  import("@/components/attendance/AttendanceManager")
+                  import("@/components/dashboard/OwnerDashboardStats")
                 }
                 fallback={<ComponentLoader />}
               />
@@ -189,7 +227,7 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flexDirection: "row",
-    alignItems: "center", // Kept centered, works best for header
+    alignItems: "center",
     zIndex: 1,
   },
   headerIconContainer: {
@@ -238,5 +276,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     bottom: scaleDimension(-20),
     right: scaleDimension(40),
+  },
+  refreshButton: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    overflow: "hidden",
+    ...PLATFORM.shadowMd,
+  },
+  refreshButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  refreshButtonGradient: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

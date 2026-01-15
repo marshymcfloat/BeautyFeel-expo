@@ -11,6 +11,7 @@ export interface EmployeeWithRole {
   salary: number;
   last_payslip_release: string | null;
   role: EmployeeRole; // Single enum value, not an array
+  branch: "NAILS" | "SKIN" | "LASHES" | "MASSAGE" | null;
   commission_rate: number;
   daily_rate?: number;
   can_request_payslip?: boolean;
@@ -66,16 +67,38 @@ export async function getEmployeeByUserId(userId: string) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        // No employee record found
+        // No employee record found - this is OK, not an error
         return {
           success: true,
           data: null,
         };
       }
+      
+      // Check if error message contains HTML (500 error from Cloudflare)
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("<html>") || errorMessage.includes("500")) {
+        // Silently handle 500 errors - they're expected during server issues
+        // Return success with null data to prevent infinite loops
+        // The app can still function without employee data
+        return {
+          success: true,
+          data: null,
+        };
+      }
+      
       console.error("Error fetching employee:", error);
+      // For other errors, still return success with null to prevent blocking
       return {
-        success: false,
-        error: error.message || "Failed to fetch employee record",
+        success: true,
+        data: null,
+      };
+    }
+
+    // Handle null/undefined data
+    if (!data) {
+      return {
+        success: true,
+        data: null,
       };
     }
 
@@ -102,11 +125,23 @@ export async function getEmployeeByUserId(userId: string) {
         role: normalizedRole,
       } as EmployeeWithRole,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Unexpected error fetching employee:", error);
+    
+    // Check if error contains HTML (500 error)
+    const errorMessage = error?.message || error?.toString() || "";
+    if (errorMessage.includes("<html>") || errorMessage.includes("500")) {
+      // Silently handle 500 errors - they're expected during server issues
+      return {
+        success: true,
+        data: null,
+      };
+    }
+    
+    // For any other error, return success with null to prevent blocking
     return {
-      success: false,
-      error: "An unexpected error occurred",
+      success: true,
+      data: null,
     };
   }
 }
@@ -119,6 +154,7 @@ export async function createEmployeeAction(data: {
   email: string;
   password: string;
   role: EmployeeRole;
+  branch?: "NAILS" | "SKIN" | "LASHES" | "MASSAGE" | null;
   salary?: number;
   commission_rate?: number;
   daily_rate?: number;
@@ -201,6 +237,7 @@ export async function createEmployeeAction(data: {
       name: data.name,
       salary: data.salary ?? 0,
       role: role,
+      branch: data.branch ?? null,
       commission_rate: data.commission_rate ?? 0,
       daily_rate: defaultDailyRate,
       can_request_payslip: data.can_request_payslip ?? true,
@@ -245,6 +282,7 @@ export async function updateEmployeeAction(
     email?: string;
     password?: string | null;
     role?: EmployeeRole;
+    branch?: "NAILS" | "SKIN" | "LASHES" | "MASSAGE" | null;
     salary?: number;
     commission_rate?: number;
     daily_rate?: number;
@@ -327,6 +365,7 @@ export async function updateEmployeeAction(
     const employeeUpdate: Record<string, any> = {};
     if (data.name !== undefined) employeeUpdate.name = data.name;
     if (data.role !== undefined) employeeUpdate.role = data.role;
+    if (data.branch !== undefined) employeeUpdate.branch = data.branch;
     if (data.salary !== undefined) employeeUpdate.salary = data.salary;
     if (data.commission_rate !== undefined) {
       employeeUpdate.commission_rate = data.commission_rate;
@@ -371,20 +410,86 @@ export async function updateEmployeeAction(
 }
 
 /**
+ * Get employee email by user_id
+ */
+export async function getEmployeeEmail(userId: string) {
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "get_employee_email",
+      {
+        p_user_id: userId,
+      },
+    ) as {
+      data: string | null;
+      error: any;
+    };
+
+    if (error) {
+      console.error("Error fetching employee email:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to fetch employee email",
+      };
+    }
+
+    return {
+      success: true,
+      data: data || "",
+    };
+  } catch (error: any) {
+    console.error("Unexpected error fetching employee email:", error);
+    return {
+      success: false,
+      error: error.message || "An unexpected error occurred",
+    };
+  }
+}
+
+/**
  * Get all employees (for owners)
  */
-export async function getAllEmployees() {
+// Helper to determine branches to include based on owner's branch
+function getBranchesForOwner(ownerBranch: Database["public"]["Enums"]["branch"] | null): Database["public"]["Enums"]["branch"][] {
+  if (ownerBranch === "SKIN") {
+    return ["NAILS", "SKIN", "MASSAGE"]; // All except LASHES
+  }
+  if (ownerBranch === "LASHES") {
+    return ["LASHES"]; // Only LASHES
+  }
+  return ["NAILS", "SKIN", "LASHES", "MASSAGE"]; // All branches for other owners/admins
+}
+
+export async function getAllEmployees(ownerBranch: Database["public"]["Enums"]["branch"] | null = null) {
   try {
-    const { data, error } = await supabase
+    const branchesToInclude = getBranchesForOwner(ownerBranch);
+    
+    let query = supabase
       .from("employee")
       .select("*")
       .order("created_at", { ascending: true });
+    
+    // Filter by branch if ownerBranch is provided
+    if (ownerBranch) {
+      query = query.in("branch", branchesToInclude);
+    }
+    
+    const { data, error } = await query;
 
     if (error) {
-      console.error("Error fetching all employees:", error);
+      // Check if error message contains HTML (500 error from Cloudflare)
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("<html>") || errorMessage.includes("500")) {
+        // Silently handle 500 errors - return empty array
+        return {
+          success: true,
+          data: [],
+        };
+      }
+      
+      // For other errors, return empty array to prevent app breakage
       return {
-        success: false,
-        error: error.message || "Failed to fetch employees",
+        success: true,
+        data: [],
       };
     }
 
@@ -392,11 +497,21 @@ export async function getAllEmployees() {
       success: true,
       data: data as EmployeeWithRole[],
     };
-  } catch (error) {
-    console.error("Unexpected error fetching employees:", error);
+  } catch (error: any) {
+    // Check if error contains HTML (500 error)
+    const errorMessage = error?.message || error?.toString() || "";
+    if (errorMessage.includes("<html>") || errorMessage.includes("500")) {
+      // Silently handle 500 errors
+      return {
+        success: true,
+        data: [],
+      };
+    }
+    
+    // For any other error, return empty array
     return {
-      success: false,
-      error: "An unexpected error occurred",
+      success: true,
+      data: [],
     };
   }
 }
@@ -407,6 +522,14 @@ export async function getAllEmployees() {
  */
 export async function getServicesServedToday(userId: string) {
   try {
+    if (!userId) {
+      return {
+        success: true,
+        data: [],
+        count: 0,
+      };
+    }
+
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
     // Get service bookings served by this user today
@@ -420,10 +543,22 @@ export async function getServicesServedToday(userId: string) {
       .not("served_at", "is", null);
 
     if (error) {
-      console.error("Error fetching services served today:", error);
+      // Check if error message contains HTML (500 error from Cloudflare)
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("<html>") || errorMessage.includes("500")) {
+        // Silently handle 500 errors - return empty data
+        return {
+          success: true,
+          data: [],
+          count: 0,
+        };
+      }
+      
+      // For other errors, return empty data to prevent app breakage
       return {
-        success: false,
-        error: error.message || "Failed to fetch services served today",
+        success: true,
+        data: [],
+        count: 0,
       };
     }
 
@@ -432,11 +567,23 @@ export async function getServicesServedToday(userId: string) {
       data: data || [],
       count: data?.length || 0,
     };
-  } catch (error) {
-    console.error("Unexpected error fetching services served today:", error);
+  } catch (error: any) {
+    // Check if error contains HTML (500 error)
+    const errorMessage = error?.message || error?.toString() || "";
+    if (errorMessage.includes("<html>") || errorMessage.includes("500")) {
+      // Silently handle 500 errors
+      return {
+        success: true,
+        data: [],
+        count: 0,
+      };
+    }
+    
+    // For any other error, return empty data
     return {
-      success: false,
-      error: "An unexpected error occurred",
+      success: true,
+      data: [],
+      count: 0,
     };
   }
 }
@@ -697,9 +844,22 @@ export async function getEmployeeSalaryBreakdown(employeeId: string) {
  */
 export async function getEmployeeSalesSummary(employeeId: string) {
   try {
-    const { data, error } = await supabase.rpc("get_employee_sales_summary", {
-      p_employee_id: employeeId,
-    });
+    const { data, error } = await (supabase.rpc as any)(
+      "get_employee_sales_summary",
+      {
+        p_employee_id: employeeId,
+      },
+    ) as {
+      data:
+        | Array<{
+          total_commissions: number;
+          total_sales_deductions: number;
+          net_sales: number;
+          total_commission_transactions: number;
+        }>
+        | null;
+      error: any;
+    };
 
     if (error) {
       console.error("Error fetching sales summary:", error);
@@ -725,10 +885,12 @@ export async function getEmployeeSalesSummary(employeeId: string) {
     return {
       success: true,
       data: {
-        totalCommissions: parseFloat(result.total_commissions || 0),
-        totalSalesDeductions: parseFloat(result.total_sales_deductions || 0),
-        netSales: parseFloat(result.net_sales || 0),
-        totalCommissionTransactions: parseInt(result.total_commission_transactions || 0, 10),
+        totalCommissions: Number(result.total_commissions || 0),
+        totalSalesDeductions: Number(result.total_sales_deductions || 0),
+        netSales: Number(result.net_sales || 0),
+        totalCommissionTransactions: Number(
+          result.total_commission_transactions || 0,
+        ),
       } as SalesSummary,
     };
   } catch (error: any) {

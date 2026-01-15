@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_session_bookings: {
+        Row: {
+          attended_at: string | null
+          booking_id: number
+          created_at: string
+          id: number
+          session_id: number
+          step_order: number
+        }
+        Insert: {
+          attended_at?: string | null
+          booking_id: number
+          created_at?: string
+          id?: number
+          session_id: number
+          step_order: number
+        }
+        Update: {
+          attended_at?: string | null
+          booking_id?: number
+          created_at?: string
+          id?: number
+          session_id?: number
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_session_bookings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "booking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_session_bookings_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "customer_appointment_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance: {
         Row: {
           attendance_date: string
@@ -242,6 +284,57 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_appointment_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          customer_id: number
+          id: number
+          service_id: number
+          started_at: string
+          status: Database["public"]["Enums"]["appointment_session_status"]
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          customer_id: number
+          id?: number
+          service_id: number
+          started_at?: string
+          status?: Database["public"]["Enums"]["appointment_session_status"]
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          customer_id?: number
+          id?: number
+          service_id?: number
+          started_at?: string
+          status?: Database["public"]["Enums"]["appointment_session_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_appointment_sessions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_appointment_sessions_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discount: {
         Row: {
           branch: Database["public"]["Enums"]["branch"] | null
@@ -325,25 +418,34 @@ export type Database = {
       }
       email_reminders: {
         Row: {
-          booking_id: number
+          booking_id: number | null
           created_at: string
           id: string
           reminder_minutes: number
+          reminder_type: Database["public"]["Enums"]["reminder_type"] | null
           sent_at: string
+          session_id: number | null
+          step_order: number | null
         }
         Insert: {
-          booking_id: number
+          booking_id?: number | null
           created_at?: string
           id?: string
           reminder_minutes: number
+          reminder_type?: Database["public"]["Enums"]["reminder_type"] | null
           sent_at?: string
+          session_id?: number | null
+          step_order?: number | null
         }
         Update: {
-          booking_id?: number
+          booking_id?: number | null
           created_at?: string
           id?: string
           reminder_minutes?: number
+          reminder_type?: Database["public"]["Enums"]["reminder_type"] | null
           sent_at?: string
+          session_id?: number | null
+          step_order?: number | null
         }
         Relationships: [
           {
@@ -353,10 +455,18 @@ export type Database = {
             referencedRelation: "booking"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "email_reminders_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "customer_appointment_sessions"
+            referencedColumns: ["id"]
+          },
         ]
       }
       employee: {
         Row: {
+          branch: Database["public"]["Enums"]["branch"] | null
           can_request_payslip: boolean
           commission_rate: number
           created_at: string
@@ -371,6 +481,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          branch?: Database["public"]["Enums"]["branch"] | null
           can_request_payslip?: boolean
           commission_rate?: number
           created_at?: string
@@ -385,6 +496,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          branch?: Database["public"]["Enums"]["branch"] | null
           can_request_payslip?: boolean
           commission_rate?: number
           created_at?: string
@@ -521,6 +633,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      manual_deduction: {
+        Row: {
+          amount: number
+          branch: Database["public"]["Enums"]["branch"]
+          created_at: string
+          created_by: string
+          deduction_date: string
+          description: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          branch: Database["public"]["Enums"]["branch"]
+          created_at?: string
+          created_by: string
+          deduction_date?: string
+          description: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          branch?: Database["public"]["Enums"]["branch"]
+          created_at?: string
+          created_by?: string
+          deduction_date?: string
+          description?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       payslip_attendance: {
         Row: {
@@ -732,7 +877,9 @@ export type Database = {
           id: number
           is_active: boolean | null
           price: number
+          requires_appointments: boolean
           title: string
+          total_appointments: number | null
           updated_at: string | null
         }
         Insert: {
@@ -744,7 +891,9 @@ export type Database = {
           id?: number
           is_active?: boolean | null
           price: number
+          requires_appointments?: boolean
           title: string
+          total_appointments?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -756,10 +905,60 @@ export type Database = {
           id?: number
           is_active?: boolean | null
           price?: number
+          requires_appointments?: boolean
           title?: string
+          total_appointments?: number | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      service_appointment_steps: {
+        Row: {
+          created_at: string
+          id: number
+          label: string | null
+          recommended_after_days: number
+          service_id: number
+          service_id_for_step: number
+          step_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          label?: string | null
+          recommended_after_days: number
+          service_id: number
+          service_id_for_step: number
+          step_order: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          label?: string | null
+          recommended_after_days?: number
+          service_id?: number
+          service_id_for_step?: number
+          step_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_appointment_steps_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_appointment_steps_service_id_for_step_fkey"
+            columns: ["service_id_for_step"]
+            isOneToOne: false
+            referencedRelation: "service"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_bookings: {
         Row: {
@@ -983,11 +1182,11 @@ export type Database = {
         }[]
       }
       calculate_commission:
+        | { Args: { p_role: string; p_service_price: number }; Returns: number }
         | {
             Args: { p_roles: string[]; p_service_price: number }
             Returns: number
           }
-        | { Args: { p_role: string; p_service_price: number }; Returns: number }
       calculate_unpaid_payslip_amount: {
         Args: { p_employee_id: string }
         Returns: {
@@ -1001,6 +1200,20 @@ export type Database = {
         Returns: {
           applied: boolean
           message: string
+        }[]
+      }
+      check_and_send_appointment_reminders: {
+        Args: never
+        Returns: {
+          current_step: number
+          customer_email: string
+          customer_id: number
+          customer_name: string
+          days_until_appointment: number
+          next_recommended_date: string
+          next_step_label: string
+          service_title: string
+          session_id: number
         }[]
       }
       create_employee_user: {
@@ -1017,7 +1230,15 @@ export type Database = {
         }[]
       }
       expire_discounts: { Args: never; Returns: undefined }
+      get_branch_availability: {
+        Args: { p_date_string: string; p_service_id: number }
+        Returns: {
+          available_spots: number
+          slot_time: string
+        }[]
+      }
       get_commission_rate: { Args: { p_role: string }; Returns: number }
+      get_employee_email: { Args: { p_user_id: string }; Returns: string }
       get_employees_with_user_info: {
         Args: never
         Returns: {
@@ -1030,6 +1251,19 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_general_branch_availability: {
+        Args: { p_branch: string; p_date_string: string }
+        Returns: {
+          available_spots: number
+          busy_count: number
+          slot_time: string
+          total_capacity: number
+        }[]
+      }
+      get_next_recommended_appointment_date: {
+        Args: { p_session_id: number }
+        Returns: string
+      }
       get_overall_sales_summary: {
         Args: { p_time_span?: string }
         Returns: {
@@ -1037,6 +1271,29 @@ export type Database = {
           total_sales: number
           total_sales_deductions: number
         }[]
+      }
+      get_upcoming_appointment_sessions: {
+        Args: { p_customer_id: number }
+        Returns: {
+          current_step: number
+          last_appointment_date: string
+          next_recommended_date: string
+          next_service_id: number
+          next_service_title: string
+          next_step_label: string
+          next_step_order: number
+          recommended_after_days: number
+          service_id: number
+          service_title: string
+          session_id: number
+          started_at: string
+          status: string
+          total_steps: number
+        }[]
+      }
+      mark_appointment_attended: {
+        Args: { p_booking_id: number; p_session_id: number }
+        Returns: Json
       }
       mark_attendance_and_update_salary: {
         Args: {
@@ -1085,6 +1342,7 @@ export type Database = {
       update_expired_vouchers: { Args: never; Returns: undefined }
     }
     Enums: {
+      appointment_session_status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED"
       booking_status:
         | "PENDING"
         | "PAID"
@@ -1099,6 +1357,7 @@ export type Database = {
       employee_role: "OWNER" | "CASHIER" | "MASSEUSE" | "WORKER"
       gift_certificate_status: "ACTIVE" | "USED" | "EXPIRED"
       payslip_request_status: "PENDING" | "APPROVED" | "REJECTED"
+      reminder_type: "BOOKING" | "APPOINTMENT_STEP"
       service_instance_status: "UNCLAIMED" | "CLAIMED" | "SERVED"
       voucher_status: "ACTIVE" | "USED" | "EXPIRED"
     }
@@ -1228,6 +1487,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      appointment_session_status: ["IN_PROGRESS", "COMPLETED", "ABANDONED"],
       booking_status: [
         "PENDING",
         "PAID",
@@ -1243,6 +1503,7 @@ export const Constants = {
       employee_role: ["OWNER", "CASHIER", "MASSEUSE", "WORKER"],
       gift_certificate_status: ["ACTIVE", "USED", "EXPIRED"],
       payslip_request_status: ["PENDING", "APPROVED", "REJECTED"],
+      reminder_type: ["BOOKING", "APPOINTMENT_STEP"],
       service_instance_status: ["UNCLAIMED", "CLAIMED", "SERVED"],
       voucher_status: ["ACTIVE", "USED", "EXPIRED"],
     },

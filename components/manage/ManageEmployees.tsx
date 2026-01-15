@@ -1,31 +1,30 @@
-import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import { useToast } from "@/components/ui/toast";
 import {
   getAllEmployees,
   type EmployeeWithRole,
 } from "@/lib/actions/employeeActions";
 import { formatCurrency } from "@/lib/utils/currency";
-import { getRoleDisplayName } from "@/lib/utils/role";
 import {
-  scaleDimension,
   getContainerPadding,
   PLATFORM,
+  scaleDimension,
 } from "@/lib/utils/responsive";
+import { getRoleDisplayName } from "@/lib/utils/role";
 import { useQuery } from "@tanstack/react-query";
 import { Edit, MoreVertical, Plus, Users } from "lucide-react-native";
 import React, { useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import EmployeeFormModal from "./EmployeeFormModal";
 
-export default function ManageEmployees() {
+export default function ManageEmployees({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] =
     useState<EmployeeWithRole | null>(null);
@@ -46,6 +45,13 @@ export default function ManageEmployees() {
   });
 
   const employees = employeesData?.success ? employeesData.data || [] : [];
+
+  // Expose refetch function to parent
+  React.useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(() => refetchEmployees());
+    }
+  }, [onRefetchReady, refetchEmployees]);
 
   const handleCreateEmployee = () => {
     setSelectedEmployee(null);
@@ -92,7 +98,11 @@ export default function ManageEmployees() {
           style={styles.retryButton}
           onPress={() => refetchEmployees()}
         >
-          <ResponsiveText variant="md" style={styles.retryButtonText} numberOfLines={1}>
+          <ResponsiveText
+            variant="md"
+            style={styles.retryButtonText}
+            numberOfLines={1}
+          >
             Retry
           </ResponsiveText>
         </Pressable>
@@ -104,17 +114,29 @@ export default function ManageEmployees() {
     <View style={[styles.container, { paddingHorizontal: containerPadding }]}>
       <View style={styles.header}>
         <View style={styles.headerTextContainer}>
-          <ResponsiveText variant="2xl" style={styles.headerTitle} numberOfLines={1}>
+          <ResponsiveText
+            variant="2xl"
+            style={styles.headerTitle}
+            numberOfLines={1}
+          >
             Employees
           </ResponsiveText>
-          <ResponsiveText variant="sm" style={styles.headerSubtitle} numberOfLines={1}>
+          <ResponsiveText
+            variant="sm"
+            style={styles.headerSubtitle}
+            numberOfLines={1}
+          >
             {employees.length} total employee
             {employees.length !== 1 ? "s" : ""}
           </ResponsiveText>
         </View>
         <Pressable onPress={handleCreateEmployee} style={styles.addButton}>
           <Plus size={iconSize} color="white" />
-          <ResponsiveText variant="sm" style={styles.addButtonText} numberOfLines={1}>
+          <ResponsiveText
+            variant="sm"
+            style={styles.addButtonText}
+            numberOfLines={1}
+          >
             Add Employee
           </ResponsiveText>
         </Pressable>
@@ -136,48 +158,106 @@ export default function ManageEmployees() {
             <View key={employee.id} style={styles.employeeCard}>
               <View style={styles.employeeContent}>
                 <View style={styles.employeeHeader}>
-                  <ResponsiveText variant="lg" style={styles.employeeName} numberOfLines={2}>
+                  <ResponsiveText
+                    variant="lg"
+                    style={styles.employeeName}
+                    numberOfLines={2}
+                  >
                     {employee.name || "Unnamed Employee"}
                   </ResponsiveText>
                   <View style={styles.roleBadge}>
-                    <ResponsiveText variant="xs" style={styles.roleBadgeText} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="xs"
+                      style={styles.roleBadgeText}
+                      numberOfLines={1}
+                    >
                       {getRoleDisplayName(employee.role)}
                     </ResponsiveText>
                   </View>
                 </View>
                 <View style={styles.employeeDetails}>
+                  {employee.branch && (
+                    <View style={styles.detailRow}>
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.detailLabel}
+                        numberOfLines={1}
+                      >
+                        Branch:
+                      </ResponsiveText>
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.detailValue}
+                        numberOfLines={1}
+                      >
+                        {employee.branch}
+                      </ResponsiveText>
+                    </View>
+                  )}
                   <View style={styles.detailRow}>
-                    <ResponsiveText variant="sm" style={styles.detailLabel} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.detailLabel}
+                      numberOfLines={1}
+                    >
                       Base Salary:
                     </ResponsiveText>
-                    <ResponsiveText variant="sm" style={styles.detailValue} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.detailValue}
+                      numberOfLines={1}
+                    >
                       {formatCurrency(employee.salary || 0)}
                     </ResponsiveText>
                   </View>
                   <View style={styles.detailRow}>
-                    <ResponsiveText variant="sm" style={styles.detailLabel} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.detailLabel}
+                      numberOfLines={1}
+                    >
                       Commission Rate:
                     </ResponsiveText>
-                    <ResponsiveText variant="sm" style={styles.detailValue} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.detailValue}
+                      numberOfLines={1}
+                    >
                       {employee.commission_rate || 0}%
                     </ResponsiveText>
                   </View>
                   {employee.daily_rate !== undefined &&
                     employee.daily_rate > 0 && (
                       <View style={styles.detailRow}>
-                        <ResponsiveText variant="sm" style={styles.detailLabel} numberOfLines={1}>
+                        <ResponsiveText
+                          variant="sm"
+                          style={styles.detailLabel}
+                          numberOfLines={1}
+                        >
                           Daily Rate:
                         </ResponsiveText>
-                        <ResponsiveText variant="sm" style={styles.detailValue} numberOfLines={1}>
+                        <ResponsiveText
+                          variant="sm"
+                          style={styles.detailValue}
+                          numberOfLines={1}
+                        >
                           {formatCurrency(employee.daily_rate)}
                         </ResponsiveText>
                       </View>
                     )}
                   <View style={styles.detailRow}>
-                    <ResponsiveText variant="sm" style={styles.detailLabel} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.detailLabel}
+                      numberOfLines={1}
+                    >
                       Can Request Payslip:
                     </ResponsiveText>
-                    <ResponsiveText variant="sm" style={styles.detailValue} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.detailValue}
+                      numberOfLines={1}
+                    >
                       {employee.can_request_payslip ? "Yes" : "No"}
                     </ResponsiveText>
                   </View>
@@ -197,7 +277,11 @@ export default function ManageEmployees() {
                       onPress={() => handleEditEmployee(employee)}
                     >
                       <Edit size={smallIconSize} color="#3b82f6" />
-                      <ResponsiveText variant="sm" style={styles.actionMenuText} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.actionMenuText}
+                        numberOfLines={1}
+                      >
                         Edit
                       </ResponsiveText>
                     </Pressable>

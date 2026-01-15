@@ -84,10 +84,10 @@ export function SelectedItemsList({
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
           >
-            {services.map((selectedService) => {
+            {services.map((selectedService, index) => {
               const itemPrice =
                 (selectedService.service.price || 0) * selectedService.quantity;
-              
+
               // Check if this service has a discount applied
               const hasDiscount =
                 activeDiscount &&
@@ -96,12 +96,16 @@ export function SelectedItemsList({
                 ) &&
                 (!activeDiscount.branch ||
                   activeDiscount.branch === selectedService.service.branch);
-              
+
               const originalPrice = (selectedService as any).originalPrice;
-              const isDiscounted = originalPrice && originalPrice > selectedService.service.price;
-              
+              const isDiscounted =
+                originalPrice && originalPrice > selectedService.service.price;
+
               return (
-                <View key={selectedService.serviceId} style={styles.item}>
+                <View
+                  key={`service-${selectedService.serviceId}-${index}`}
+                  style={styles.item}
+                >
                   <View style={styles.itemHeader}>
                     <View style={styles.itemInfo}>
                       <View style={styles.titleRow}>
@@ -114,7 +118,9 @@ export function SelectedItemsList({
                             <Text style={styles.discountBadgeText}>
                               {activeDiscount?.discount_type === "PERCENTAGE"
                                 ? `${activeDiscount.discount_value}%`
-                                : `-${formatCurrency(activeDiscount?.discount_value || 0)}`}
+                                : `-${formatCurrency(
+                                    activeDiscount?.discount_value || 0
+                                  )}`}
                             </Text>
                           </View>
                         )}
@@ -199,7 +205,7 @@ export function SelectedItemsList({
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
           >
-            {serviceSets.map((selectedServiceSet) => {
+            {serviceSets.map((selectedServiceSet, index) => {
               const itemPrice =
                 (selectedServiceSet.serviceSet.price || 0) *
                 selectedServiceSet.quantity;
@@ -207,7 +213,7 @@ export function SelectedItemsList({
                 selectedServiceSet.serviceSet.service_set_items?.length || 0;
               return (
                 <View
-                  key={selectedServiceSet.serviceSetId}
+                  key={`serviceSet-${selectedServiceSet.serviceSetId}-${index}`}
                   style={[styles.item, styles.serviceSetItem]}
                 >
                   <View style={styles.itemHeader}>

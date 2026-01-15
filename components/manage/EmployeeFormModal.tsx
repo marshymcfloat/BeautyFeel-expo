@@ -1,27 +1,27 @@
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import {
   createEmployeeAction,
+  getEmployeeEmail,
   updateEmployeeAction,
   type EmployeeWithRole,
 } from "@/lib/actions/employeeActions";
 import { capitalizeWords } from "@/lib/utils";
-import {
-  scaleDimension,
-  percentageHeight,
-} from "@/lib/utils/responsive";
+import { percentageHeight, scaleDimension } from "@/lib/utils/responsive";
 import {
   employeeSchema,
   type EmployeeFormData,
 } from "@/lib/zod-schemas/employee";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { X } from "lucide-react-native";
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -56,12 +56,13 @@ export default function EmployeeFormModal({
 
   const form = useForm<EmployeeFormData & { password?: string | null }>({
     resolver: zodResolver(formSchema as any),
-        defaultValues: existingEmployee
+    defaultValues: existingEmployee
       ? {
           name: existingEmployee.name || "",
-          email: "", // Email will be fetched if needed, but we don't store it in employee table
+          email: "", // Will be populated by useEffect when email is fetched
           password: undefined,
           role: existingEmployee.role,
+          branch: existingEmployee.branch || null,
           salary: existingEmployee.salary || 0,
           commission_rate: existingEmployee.commission_rate || 0,
           daily_rate: existingEmployee.daily_rate || 0,
@@ -72,6 +73,7 @@ export default function EmployeeFormModal({
           email: "",
           password: undefined,
           role: "WORKER",
+          branch: null,
           salary: 0,
           commission_rate: 0,
           daily_rate: 0,
@@ -88,18 +90,28 @@ export default function EmployeeFormModal({
   } = form;
 
   const watchedRole = watch("role");
+  const watchedBranch = watch("branch");
   const watchedCanRequestPayslip = watch("can_request_payslip");
   const iconSize = scaleDimension(24);
+
+  // Fetch employee email when editing
+  const { data: emailData } = useQuery({
+    queryKey: ["employee-email", existingEmployee?.user_id],
+    queryFn: () => getEmployeeEmail(existingEmployee?.user_id || ""),
+    enabled: !!existingEmployee?.user_id && visible && isEditMode,
+  });
 
   // Reset form when modal opens or existingEmployee changes
   useEffect(() => {
     if (visible) {
       if (existingEmployee) {
+        const email = emailData?.success ? emailData.data || "" : "";
         reset({
           name: existingEmployee.name || "",
-          email: "", // Email not stored in employee table
+          email: email,
           password: undefined,
           role: existingEmployee.role,
+          branch: existingEmployee.branch || null,
           salary: existingEmployee.salary || 0,
           commission_rate: existingEmployee.commission_rate || 0,
           daily_rate: existingEmployee.daily_rate || 0,
@@ -111,6 +123,7 @@ export default function EmployeeFormModal({
           email: "",
           password: "",
           role: "WORKER",
+          branch: null,
           salary: 0,
           commission_rate: 0,
           daily_rate: 0,
@@ -118,7 +131,7 @@ export default function EmployeeFormModal({
         });
       }
     }
-  }, [visible, existingEmployee, reset]);
+  }, [visible, existingEmployee, reset, emailData]);
 
   const handleClose = () => {
     reset();
@@ -152,6 +165,7 @@ export default function EmployeeFormModal({
         email: data.email || undefined,
         password: data.password || undefined,
         role: data.role,
+        branch: data.branch || null,
         salary: data.salary,
         commission_rate: data.commission_rate,
         daily_rate: data.daily_rate,
@@ -210,7 +224,10 @@ export default function EmployeeFormModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modalContent}>
           <ScrollView
@@ -218,7 +235,11 @@ export default function EmployeeFormModal({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <ResponsiveText variant="2xl" style={styles.headerTitle} numberOfLines={1}>
+              <ResponsiveText
+                variant="2xl"
+                style={styles.headerTitle}
+                numberOfLines={1}
+              >
                 {isEditMode ? "Edit Employee" : "Create Employee"}
               </ResponsiveText>
               <Pressable onPress={handleClose} style={styles.closeButton}>
@@ -259,7 +280,11 @@ export default function EmployeeFormModal({
               />
 
               <View style={styles.formSection}>
-                <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+                <ResponsiveText
+                  variant="sm"
+                  style={styles.label}
+                  numberOfLines={1}
+                >
                   Role *
                 </ResponsiveText>
                 <View style={styles.roleContainer}>
@@ -292,8 +317,82 @@ export default function EmployeeFormModal({
                   )}
                 </View>
                 {errors.role && (
-                  <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={2}>
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.errorText}
+                    numberOfLines={2}
+                  >
                     {errors.role.message}
+                  </ResponsiveText>
+                )}
+              </View>
+
+              <View style={styles.formSection}>
+                <ResponsiveText
+                  variant="sm"
+                  style={styles.label}
+                  numberOfLines={1}
+                >
+                  Branch
+                </ResponsiveText>
+                <View style={styles.roleContainer}>
+                  <Pressable
+                    onPress={() => form.setValue("branch", null)}
+                    style={[
+                      styles.roleButton,
+                      watchedBranch === null
+                        ? styles.roleButtonSelected
+                        : styles.roleButtonUnselected,
+                    ]}
+                  >
+                    <ResponsiveText
+                      variant="sm"
+                      style={[
+                        styles.roleButtonText,
+                        watchedBranch === null
+                          ? styles.roleButtonTextSelected
+                          : styles.roleButtonTextUnselected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      None
+                    </ResponsiveText>
+                  </Pressable>
+                  {(["NAILS", "SKIN", "LASHES", "MASSAGE"] as const).map(
+                    (branch) => (
+                      <Pressable
+                        key={branch}
+                        onPress={() => form.setValue("branch", branch)}
+                        style={[
+                          styles.roleButton,
+                          watchedBranch === branch
+                            ? styles.roleButtonSelected
+                            : styles.roleButtonUnselected,
+                        ]}
+                      >
+                        <ResponsiveText
+                          variant="sm"
+                          style={[
+                            styles.roleButtonText,
+                            watchedBranch === branch
+                              ? styles.roleButtonTextSelected
+                              : styles.roleButtonTextUnselected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {branch}
+                        </ResponsiveText>
+                      </Pressable>
+                    )
+                  )}
+                </View>
+                {errors.branch && (
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.errorText}
+                    numberOfLines={2}
+                  >
+                    {errors.branch.message}
                   </ResponsiveText>
                 )}
               </View>
@@ -337,7 +436,11 @@ export default function EmployeeFormModal({
                   }
                   style={styles.toggleContainer}
                 >
-                  <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+                  <ResponsiveText
+                    variant="sm"
+                    style={styles.label}
+                    numberOfLines={1}
+                  >
                     Can Request Payslip
                   </ResponsiveText>
                   <View
@@ -370,7 +473,11 @@ export default function EmployeeFormModal({
                   {isPending ? (
                     <ActivityIndicator color="white" />
                   ) : (
-                    <ResponsiveText variant="md" style={styles.submitButtonText} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="md"
+                      style={styles.submitButtonText}
+                      numberOfLines={1}
+                    >
                       {isEditMode ? "Update Employee" : "Create Employee"}
                     </ResponsiveText>
                   )}
@@ -379,7 +486,7 @@ export default function EmployeeFormModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

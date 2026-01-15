@@ -7,8 +7,13 @@ import {
   UpdateBookingSchema,
   updateBookingSchema,
 } from "../zod-schemas/booking";
+import {
+  findOrCreateAppointmentSession,
+  getServiceAppointmentSteps,
+  linkBookingToSession,
+} from "./appointmentSessionActions";
 import { createCustomerAction } from "./customerActions";
-import { getActiveDiscount } from "./discountActions";
+import { getActiveDiscounts } from "./discountActions";
 
 type Booking = Tables<"public", "booking">;
 type Service = Tables<"public", "service">;
@@ -39,7 +44,7 @@ export async function createBookingAction(data: CreateBookingSchema) {
     if (serviceIds.length > 0) {
       const { data: services, error: servicesError } = await supabase
         .from("service")
-        .select("id, price, duration_minutes, is_active")
+        .select("*")
         .in("id", serviceIds);
 
       if (servicesError || !services) {
@@ -51,7 +56,18 @@ export async function createBookingAction(data: CreateBookingSchema) {
 
       // Validate all services exist and are active
       for (const service of services) {
-        servicesMap.set(service.id, service);
+        // Ensure price is defined
+        if (service.price === null || service.price === undefined) {
+          console.error(
+            `Service ${service.id} (${service.title}) has undefined price`,
+          );
+          return {
+            success: false,
+            error:
+              `Service "${service.title}" has an invalid price. Please contact support.`,
+          };
+        }
+        servicesMap.set(service.id, service as Service);
       }
 
       for (const bookingService of validated.services || []) {
@@ -151,28 +167,34 @@ export async function createBookingAction(data: CreateBookingSchema) {
     }
 
     // Fetch active discount and apply to eligible services
-    const activeDiscountResult = await getActiveDiscount();
-    const activeDiscount = activeDiscountResult.success
-      ? activeDiscountResult.data
-      : null;
+    const activeDiscountsResult = await getActiveDiscounts();
+    const activeDiscounts = activeDiscountsResult.success
+      ? activeDiscountsResult.data
+      : [];
+
+    // Find the applicable discount
+    let activeDiscount = null;
+    if (activeDiscounts && activeDiscounts.length > 0) {
+      activeDiscount =
+        activeDiscounts.find((d) => {
+          const branchMatches = !d.branch || d.branch === validated.branch;
+          const now = new Date();
+          const startDate = new Date(d.start_date);
+          const endDate = new Date(d.end_date);
+          const isDateValid = now >= startDate && now <= endDate;
+          return branchMatches && isDateValid;
+        }) || null;
+    }
 
     // Check if discount applies to this branch and is currently valid
     let discountServiceIds = new Set<number>();
     let discountApplies = false;
-    if (activeDiscount) {
-      const branchMatches =
-        !activeDiscount.branch || activeDiscount.branch === validated.branch;
-      const now = new Date();
-      const startDate = new Date(activeDiscount.start_date);
-      const endDate = new Date(activeDiscount.end_date);
-      const isDateValid = now >= startDate && now <= endDate;
-
-      if (branchMatches && isDateValid) {
-        discountApplies = true;
-        discountServiceIds = new Set(
-          activeDiscount.discount_services?.map((ds) => ds.service_id) || []
-        );
-      }
+    if (activeDiscount && validated.applyDiscount) {
+      // Branch and date checks are already done above
+      discountApplies = true;
+      discountServiceIds = new Set(
+        activeDiscount.discount_services?.map((ds) => ds.service_id) || [],
+      );
     }
 
     // Calculate totals and store discounted prices for service_bookings
@@ -183,7 +205,22 @@ export async function createBookingAction(data: CreateBookingSchema) {
 
     // Add totals from individual services (with discount applied if applicable)
     for (const bookingService of validated.services || []) {
-      const service = servicesMap.get(bookingService.serviceId)!;
+      const service = servicesMap.get(bookingService.serviceId);
+      if (!service) {
+        return {
+          success: false,
+          error:
+            `Service with ID ${bookingService.serviceId} not found in services map`,
+        };
+      }
+      if (service.price === null || service.price === undefined) {
+        return {
+          success: false,
+          error: `Service "${
+            service.title || service.id
+          }" has an invalid price`,
+        };
+      }
       let servicePrice = service.price;
 
       // Apply discount if service is eligible
@@ -195,7 +232,7 @@ export async function createBookingAction(data: CreateBookingSchema) {
         } else if (activeDiscount!.discount_type === "ABSOLUTE") {
           servicePrice = Math.max(
             0,
-            servicePrice - activeDiscount!.discount_value
+            servicePrice - activeDiscount!.discount_value,
           );
         }
       }
@@ -287,7 +324,7 @@ export async function createBookingAction(data: CreateBookingSchema) {
       // Use grandDiscount from form if provided, otherwise use voucher value
       voucherDiscount = Math.min(
         validated.grandDiscount || voucher.value,
-        grandTotal
+        grandTotal,
       );
     } else if (validated.voucherCode) {
       // Fallback: use voucherCode for backward compatibility
@@ -436,20 +473,45 @@ export async function createBookingAction(data: CreateBookingSchema) {
 
     // Create service instances for individual services
     for (const bookingService of validated.services || []) {
-      const service = servicesMap.get(bookingService.serviceId)!;
+      const service = servicesMap.get(bookingService.serviceId);
+      if (!service) {
+        console.error(
+          `Service ${bookingService.serviceId} not found in servicesMap`,
+        );
+        return {
+          success: false,
+          error: `Service with ID ${bookingService.serviceId} not found`,
+        };
+      }
+      if (service.price === null || service.price === undefined) {
+        console.error(
+          `Service ${service.id} (${service.title}) has undefined price`,
+        );
+        return {
+          success: false,
+          error: `Service "${
+            service.title || service.id
+          }" has an invalid price`,
+        };
+      }
       // Use discounted price if available, otherwise use original price
-      const priceToUse = discountedPricesMap.get(bookingService.serviceId) ?? service.price;
+      const priceToUse = discountedPricesMap.get(bookingService.serviceId) ??
+        service.price;
 
       // Create one instance per quantity
       for (let i = 0; i < bookingService.quantity; i++) {
-        serviceBookingsInserts.push({
+        const serviceInstance = {
           booking_transaction_id: booking.id,
           service_id: service.id,
           quantity: 1, // Each instance has quantity 1
           price_at_booking: priceToUse, // Use discounted price for commission calculation
           sequence_order: sequenceOrder++,
-          status: "UNCLAIMED", // New instances start as unclaimed
-        });
+          status: "UNCLAIMED" as const, // New instances start as unclaimed
+        };
+        serviceBookingsInserts.push(serviceInstance);
+        console.log(
+          `📝 Adding service instance: service_id=${service.id}, price=${priceToUse}, status=UNCLAIMED`,
+        );
       }
     }
 
@@ -492,6 +554,17 @@ export async function createBookingAction(data: CreateBookingSchema) {
       }
     }
 
+    // Validate that we have service instances to insert
+    if (serviceBookingsInserts.length === 0) {
+      // Rollback: delete the booking if no service instances
+      await supabase.from("booking").delete().eq("id", booking.id);
+      return {
+        success: false,
+        error:
+          "No service instances to create. Please add at least one service or service set.",
+      };
+    }
+
     // Insert all service instances
     const { data: serviceBookings, error: serviceBookingsError } =
       await supabase
@@ -504,11 +577,171 @@ export async function createBookingAction(data: CreateBookingSchema) {
       await supabase.from("booking").delete().eq("id", booking.id);
 
       console.error("Service bookings creation error:", serviceBookingsError);
+      console.error(
+        "Service bookings inserts:",
+        JSON.stringify(serviceBookingsInserts, null, 2),
+      );
       return {
         success: false,
         error: serviceBookingsError?.message ||
           "Failed to create service instances",
       };
+    }
+
+    console.log(
+      `✅ Created ${serviceBookings.length} service instance(s) for booking ${booking.id}`,
+    );
+    console.log(
+      `Service instances:`,
+      serviceBookings.map((sb) => ({
+        id: sb.id,
+        service_id: sb.service_id,
+        status: sb.status,
+        booking_transaction_id: sb.booking_transaction_id,
+      })),
+    );
+
+    // Fetch the booking with full details including service_bookings for the response
+    const { data: bookingWithDetails, error: fetchError } = await supabase
+      .from("booking")
+      .select(
+        `
+        *,
+        customer:customer_id (*),
+        service_bookings:service_bookings!service_bookings_booking_transaction_id_fkey (
+          *,
+          service:service_id (*)
+        )
+      `,
+      )
+      .eq("id", booking.id)
+      .single();
+
+    if (fetchError || !bookingWithDetails) {
+      console.error("Error fetching booking with details:", fetchError);
+      // Still return success with the basic booking if fetch fails
+      // The service instances were created successfully
+    }
+
+    // Handle appointment sessions for multi-appointment services
+    // Check each service in the booking to see if it requires appointments
+    const processedServices = new Set<number>();
+
+    for (const bookingService of validated.services || []) {
+      if (processedServices.has(bookingService.serviceId)) {
+        continue; // Already processed this service
+      }
+      processedServices.add(bookingService.serviceId);
+
+      const service = servicesMap.get(bookingService.serviceId);
+      if (!service) continue;
+
+      // Check if this service requires appointments
+      const { data: serviceWithAppointments } = await supabase
+        .from("service")
+        .select("id, requires_appointments, total_appointments")
+        .eq("id", bookingService.serviceId)
+        .single();
+
+      if (serviceWithAppointments?.requires_appointments) {
+        // Find or create appointment session
+        const sessionResult = await findOrCreateAppointmentSession({
+          customerId: customerId,
+          serviceId: bookingService.serviceId,
+        });
+
+        if (sessionResult.success && sessionResult.data) {
+          const session = sessionResult.data;
+
+          console.log(
+            `📋 Found/created appointment session ${session.id} for customer ${customerId}, service ${bookingService.serviceId}, current step: ${session.current_step}`,
+          );
+
+          // Get appointment steps to determine which step this booking fulfills
+          const stepsResult = await getServiceAppointmentSteps(
+            bookingService.serviceId,
+          );
+
+          if (stepsResult.success && stepsResult.data) {
+            const steps = stepsResult.data;
+
+            // Priority 1: Check if this booking matches the CURRENT step (the next step the customer needs)
+            const currentStep = steps.find(
+              (step) => step.step_order === session.current_step,
+            );
+
+            let matchingStep: typeof steps[0] | undefined = undefined;
+
+            if (
+              currentStep &&
+              currentStep.service_id_for_step === bookingService.serviceId
+            ) {
+              // Check if this step already has a booking linked
+              const { data: existingLink } = await supabase
+                .from("appointment_session_bookings")
+                .select("id")
+                .eq("session_id", session.id)
+                .eq("step_order", currentStep.step_order)
+                .maybeSingle();
+
+              // Only match if the step doesn't already have a booking
+              if (!existingLink) {
+                matchingStep = currentStep;
+              }
+            }
+
+            // Priority 2: If current step doesn't match or already has a booking,
+            // check if this booking matches a future step that hasn't been booked yet
+            if (!matchingStep) {
+              // Find steps that match the booking service and haven't been booked yet
+              for (const step of steps) {
+                if (
+                  step.service_id_for_step === bookingService.serviceId &&
+                  step.step_order >= session.current_step
+                ) {
+                  // Check if this step already has a booking
+                  const { data: existingLink } = await supabase
+                    .from("appointment_session_bookings")
+                    .select("id")
+                    .eq("session_id", session.id)
+                    .eq("step_order", step.step_order)
+                    .maybeSingle();
+
+                  if (!existingLink) {
+                    matchingStep = step;
+                    break; // Use the first available matching step
+                  }
+                }
+              }
+            }
+
+            // Link booking to session if we found a matching step
+            if (matchingStep) {
+              const linkResult = await linkBookingToSession({
+                sessionId: session.id,
+                bookingId: booking.id,
+                stepOrder: matchingStep.step_order,
+              });
+
+              if (linkResult.success) {
+                console.log(
+                  `✅ Linked booking ${booking.id} to session ${session.id}, step ${matchingStep.step_order}`,
+                );
+              } else {
+                console.warn(
+                  `Could not link booking ${booking.id} to session ${session.id}, step ${matchingStep.step_order}: ${linkResult.error}`,
+                );
+                // Don't fail the booking creation if linking fails
+                // The booking is still created successfully
+              }
+            } else {
+              console.log(
+                `ℹ️ Booking ${booking.id} for service ${bookingService.serviceId} does not match any available appointment steps for session ${session.id}`,
+              );
+            }
+          }
+        }
+      }
     }
 
     // Mark voucher as used if applied
@@ -542,11 +775,15 @@ export async function createBookingAction(data: CreateBookingSchema) {
     (async () => {
       try {
         // Use dynamic import with error handling to avoid module loading issues
-        const emailModule = await import("./emailReminderActions").catch(() => null);
+        const emailModule = await import("./emailReminderActions").catch(() =>
+          null
+        );
         if (emailModule?.sendBookingConfirmationIfNeeded) {
-          await emailModule.sendBookingConfirmationIfNeeded(booking.id).catch((err) => {
-            console.error("Error sending confirmation email:", err);
-          });
+          await emailModule.sendBookingConfirmationIfNeeded(booking.id).catch(
+            (err) => {
+              console.error("Error sending confirmation email:", err);
+            },
+          );
         }
       } catch (error) {
         // Silently fail - email sending is optional and shouldn't block booking creation
@@ -556,10 +793,7 @@ export async function createBookingAction(data: CreateBookingSchema) {
 
     return {
       success: true,
-      data: {
-        booking,
-        serviceBookings,
-      },
+      data: bookingWithDetails || booking as BookingWithServices,
     };
   } catch (error) {
     console.error("Unexpected error creating booking:", error);

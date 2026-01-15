@@ -5,6 +5,7 @@ import {
   type BookingEmailData,
 } from "../services/emailService";
 import type { Database } from "../../database.types";
+import { getNextRecommendedAppointmentDate } from "./appointmentSessionActions";
 
 type Booking = Database["public"]["Tables"]["booking"]["Row"];
 type Customer = Database["public"]["Tables"]["customer"]["Row"];
@@ -256,6 +257,7 @@ export async function checkAndSendReminders(): Promise<{
           await supabase.from("email_reminders").insert({
             booking_id: booking.id,
             reminder_minutes: reminderMinutes,
+            reminder_type: "BOOKING",
             sent_at: new Date().toISOString(),
           });
           sent++;
@@ -273,6 +275,11 @@ export async function checkAndSendReminders(): Promise<{
       }
     }
 
+    // Also check and send appointment step reminders
+    const appointmentRemindersResult = await checkAndSendAppointmentReminders();
+    sent += appointmentRemindersResult.sent;
+    errors.push(...appointmentRemindersResult.errors);
+
     return {
       success: errors.length === 0,
       sent,
@@ -280,6 +287,174 @@ export async function checkAndSendReminders(): Promise<{
     };
   } catch (error) {
     const errorMsg = `Error in checkAndSendReminders: ${
+      error instanceof Error ? error.message : "Unknown error"
+    }`;
+    errors.push(errorMsg);
+    console.error(errorMsg, error);
+    return {
+      success: false,
+      sent,
+      errors,
+    };
+  }
+}
+
+/**
+ * Check and send reminder emails for appointment steps
+ * Sends reminders 1-3 days before recommended appointment dates
+ */
+export async function checkAndSendAppointmentReminders(): Promise<{
+  success: boolean;
+  sent: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let sent = 0;
+
+  try {
+    // Use the RPC function to get sessions that need reminders
+    const { data: sessions, error: sessionsError } = await supabase.rpc(
+      "check_and_send_appointment_reminders"
+    );
+
+    if (sessionsError) {
+      return {
+        success: false,
+        sent: 0,
+        errors: [sessionsError.message],
+      };
+    }
+
+    if (!sessions || sessions.length === 0) {
+      return { success: true, sent: 0, errors: [] };
+    }
+
+    // Process each session
+    for (const session of sessions) {
+      try {
+        if (!session.customer_email) {
+          continue;
+        }
+
+        // Get service details for the next step
+        const { data: service, error: serviceError } = await supabase
+          .from("service")
+          .select("title")
+          .eq("id", session.next_service_id || session.service_id)
+          .single();
+
+        if (serviceError || !service) {
+          errors.push(
+            `Failed to fetch service for session #${session.session_id}`
+          );
+          continue;
+        }
+
+        // Format the recommended date
+        const recommendedDate = session.next_recommended_date
+          ? new Date(session.next_recommended_date)
+          : null;
+
+        if (!recommendedDate) {
+          continue;
+        }
+
+        const formattedDate = recommendedDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+
+        const daysUntil = session.days_until_appointment || 0;
+        const daysText = daysUntil === 1 ? "1 day" : `${daysUntil} days`;
+
+        // Send appointment step reminder email
+        const emailModule = await import("../services/emailService").catch(
+          () => null
+        );
+        if (emailModule?.sendAppointmentStepReminder) {
+          const result = await emailModule.sendAppointmentStepReminder({
+            customerName: session.customer_name || "Valued Customer",
+            customerEmail: session.customer_email,
+            serviceTitle: session.service_title,
+            currentStep: session.current_step,
+            nextStepLabel: session.next_step_label || `Step ${session.current_step}`,
+            recommendedDate: formattedDate,
+            daysUntil: daysText,
+          });
+
+          if (result.success) {
+            // Record that we sent this reminder
+            await supabase.from("email_reminders").insert({
+              booking_id: 0, // No specific booking for appointment step reminders
+              session_id: session.session_id,
+              step_order: session.current_step,
+              reminder_type: "APPOINTMENT_STEP",
+              reminder_minutes: daysUntil * 24 * 60, // Convert days to minutes for consistency
+              sent_at: new Date().toISOString(),
+            });
+            sent++;
+          } else {
+            errors.push(
+              `Failed to send appointment reminder for session #${session.session_id}: ${result.error}`
+            );
+          }
+        } else {
+          // Fallback: use booking reminder format
+          const emailData: BookingEmailData = {
+            customerName: session.customer_name || "Valued Customer",
+            customerEmail: session.customer_email,
+            bookingId: 0,
+            appointmentDate: session.next_recommended_date || "",
+            appointmentTime: "",
+            services: [
+              {
+                name: service.title,
+                quantity: 1,
+              },
+            ],
+            location: "",
+            totalAmount: 0,
+          };
+
+          const result = await sendBookingReminder(
+            emailData,
+            daysUntil * 24 * 60
+          );
+
+          if (result.success) {
+            await supabase.from("email_reminders").insert({
+              booking_id: 0,
+              session_id: session.session_id,
+              step_order: session.current_step,
+              reminder_type: "APPOINTMENT_STEP",
+              reminder_minutes: daysUntil * 24 * 60,
+              sent_at: new Date().toISOString(),
+            });
+            sent++;
+          } else {
+            errors.push(
+              `Failed to send appointment reminder for session #${session.session_id}: ${result.error}`
+            );
+          }
+        }
+      } catch (error) {
+        const errorMsg = `Error processing session #${session.session_id}: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`;
+        errors.push(errorMsg);
+        console.error(errorMsg, error);
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      sent,
+      errors,
+    };
+  } catch (error) {
+    const errorMsg = `Error in checkAndSendAppointmentReminders: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;
     errors.push(errorMsg);

@@ -45,7 +45,11 @@ type Branch = Database["public"]["Enums"]["branch"];
 
 type ManageTab = "services" | "serviceSets";
 
-export default function ManageServices() {
+export default function ManageServices({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [activeTab, setActiveTab] = useState<ManageTab>("services");
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showServiceSetModal, setShowServiceSetModal] = useState(false);
@@ -89,6 +93,13 @@ export default function ManageServices() {
   const serviceSets = serviceSetsData?.success
     ? (serviceSetsData.data as any[])
     : [];
+
+  // Expose refetch function to parent
+  React.useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(() => refetchServices());
+    }
+  }, [onRefetchReady, refetchServices]);
 
   const servicesByBranch = useMemo(() => {
     const grouped: Record<Branch, Service[]> = {

@@ -5,7 +5,7 @@ import {
   type GiftCertificateWithRelations,
 } from "@/lib/actions/giftCertificateActions";
 import { isValidGiftCertificateCode } from "@/lib/utils/giftCertificateCodeGenerator";
-import { scaleDimension, percentageHeight } from "@/lib/utils/responsive";
+import { percentageHeight, scaleDimension } from "@/lib/utils/responsive";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,11 +14,12 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { z } from "zod";
@@ -76,7 +77,10 @@ export default function ClaimGiftCertificateModal({
       setChecking(false);
       if (result.success && result.data) {
         setCheckedGiftCertificate(result.data);
-        toast.success("Gift Certificate Found", "Gift certificate is valid and ready to claim");
+        toast.success(
+          "Gift Certificate Found",
+          "Gift certificate is valid and ready to claim"
+        );
       } else {
         toast.error("Error", result.error || "Invalid gift certificate code");
         setCheckedGiftCertificate(null);
@@ -93,7 +97,10 @@ export default function ClaimGiftCertificateModal({
     mutationFn: claimGiftCertificateAction,
     onSuccess: async (result) => {
       if (result.success) {
-        toast.success("Gift Certificate Claimed", "Gift certificate claimed and booking created successfully");
+        toast.success(
+          "Gift Certificate Claimed",
+          "Gift certificate claimed and booking created successfully"
+        );
         handleClose();
         // Refresh the bookings list by calling onClaimSuccess if needed
         // But don't open the booking form modal
@@ -101,7 +108,10 @@ export default function ClaimGiftCertificateModal({
           onClaimSuccess(checkedGiftCertificate);
         }
       } else {
-        toast.error("Error", result.error || "Failed to claim gift certificate");
+        toast.error(
+          "Error",
+          result.error || "Failed to claim gift certificate"
+        );
       }
     },
     onError: (error) => {
@@ -149,7 +159,10 @@ export default function ClaimGiftCertificateModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modalContent}>
           <ScrollView
@@ -369,7 +382,7 @@ export default function ClaimGiftCertificateModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -531,4 +544,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
-

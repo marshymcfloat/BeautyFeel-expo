@@ -1,5 +1,6 @@
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import type { Database } from "@/database.types";
 import {
   approvePayslipRequestAction,
   getAllPayslipRequests,
@@ -7,6 +8,7 @@ import {
   type PayslipRequestWithEmployee,
 } from "@/lib/actions/payslipActions";
 import { formatCurrency } from "@/lib/utils/currency";
+import { scaleDimension } from "@/lib/utils/responsive";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -20,10 +22,10 @@ import {
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -32,7 +34,13 @@ import {
 import { queryClient } from "../Providers/TanstackProvider";
 import { useToast } from "../ui/toast";
 
-export default function PayslipRequestsManager() {
+type Branch = Database["public"]["Enums"]["branch"];
+
+export default function PayslipRequestsManager({
+  ownerBranch,
+}: {
+  ownerBranch?: Branch | null;
+}) {
   const toast = useToast();
   const [selectedRequest, setSelectedRequest] =
     useState<PayslipRequestWithEmployee | null>(null);
@@ -43,8 +51,8 @@ export default function PayslipRequestsManager() {
   const [rejectionReason, setRejectionReason] = useState("");
 
   const { data: requestsData, isLoading } = useQuery({
-    queryKey: ["payslip-requests"],
-    queryFn: getAllPayslipRequests,
+    queryKey: ["payslip-requests", ownerBranch],
+    queryFn: () => getAllPayslipRequests(ownerBranch || null),
     refetchInterval: 10000,
   });
 
@@ -56,6 +64,7 @@ export default function PayslipRequestsManager() {
         queryClient.invalidateQueries({ queryKey: ["my-payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
         queryClient.invalidateQueries({ queryKey: ["unpaid-payslip-amount"] });
+        queryClient.invalidateQueries({ queryKey: ["employees-attendance"] });
 
         toast.success(
           "Payslip Approved",
@@ -83,6 +92,7 @@ export default function PayslipRequestsManager() {
         queryClient.invalidateQueries({ queryKey: ["payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["my-payslip-requests"] });
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
+        queryClient.invalidateQueries({ queryKey: ["employees-attendance"] });
         toast.success("Payslip Rejected", "Payslip request has been rejected.");
         setShowActionModal(false);
         setSelectedRequest(null);
@@ -143,7 +153,28 @@ export default function PayslipRequestsManager() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Payslip Requests</Text>
+          <LinearGradient
+            colors={["#fdf2f8", "#fce7f3"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIconWrapper}>
+                <LinearGradient
+                  colors={["#ec4899", "#db2777"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.iconGradient}
+                >
+                  <FileText size={scaleDimension(22)} color="white" />
+                </LinearGradient>
+              </View>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.title}>Payslip Requests</Text>
+              </View>
+            </View>
+          </LinearGradient>
         </View>
         <LoadingState variant="skeleton" />
       </View>
@@ -152,32 +183,51 @@ export default function PayslipRequestsManager() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.headerIconWrapper}>
-            <FileText size={22} color="#ec4899" />
-          </View>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.title}>Payslip Requests</Text>
-            <Text style={styles.subtitle}>
-              {pendingRequests.length} pending request
-              {pendingRequests.length !== 1 ? "s" : ""}
-            </Text>
-          </View>
+      <View style={styles.headerShadowWrapper}>
+        <View style={styles.header}>
+          <LinearGradient
+            colors={["#fdf2f8", "#fce7f3"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIconWrapper}>
+                <LinearGradient
+                  colors={["#ec4899", "#db2777"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.iconGradient}
+                >
+                  <FileText size={scaleDimension(22)} color="white" />
+                </LinearGradient>
+              </View>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.title}>Payslip Requests</Text>
+                <View style={styles.badgeContainer}>
+                  <View style={styles.badge}>
+                    <Clock size={scaleDimension(14)} color="#f59e0b" />
+                    <Text style={styles.badgeText}>
+                      {pendingRequests.length} Pending
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
         </View>
       </View>
 
       {pendingRequests.length === 0 ? (
-        <EmptyState
-          icon={<CheckCircle2 size={48} color="#9ca3af" />}
-          title="No Pending Requests"
-          message="There are no pending payslip requests at this time."
-        />
+        <View style={styles.emptyContainer}>
+          <EmptyState
+            icon={<CheckCircle2 size={64} color="#d1d5db" />}
+            title="No Pending Requests"
+            message="There are no pending payslip requests at this time."
+          />
+        </View>
       ) : (
-        <ScrollView
-          style={styles.requestsList}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.requestsList}>
           {pendingRequests.map((request) => (
             <PayslipRequestCard
               key={request.id}
@@ -186,131 +236,156 @@ export default function PayslipRequestsManager() {
               onReject={() => handleReject(request)}
             />
           ))}
-        </ScrollView>
+        </View>
       )}
 
       <Modal
         visible={showActionModal}
         animationType="slide"
-        transparent
+        transparent={true}
         onRequestClose={() => setShowActionModal(false)}
+        statusBarTranslucent={true}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <Pressable
             style={styles.backdrop}
             onPress={() => setShowActionModal(false)}
           />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {actionType === "approve"
-                  ? "Approve Payslip"
-                  : "Reject Payslip"}
-              </Text>
-              <Pressable onPress={() => setShowActionModal(false)}>
-                <XCircle size={24} color="#6b7280" />
-              </Pressable>
-            </View>
+          <Pressable
+            style={styles.modalContentWrapper}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalShadowWrapper}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {actionType === "approve"
+                      ? "Approve Payslip"
+                      : "Reject Payslip"}
+                  </Text>
+                  <Pressable onPress={() => setShowActionModal(false)}>
+                    <XCircle size={24} color="#6b7280" />
+                  </Pressable>
+                </View>
 
-            {selectedRequest && (
-              <View style={styles.modalBody}>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.infoLabel}>Employee</Text>
-                  <Text style={styles.infoValue}>
-                    {typeof selectedRequest.employee === "object" &&
-                    selectedRequest.employee
-                      ? selectedRequest.employee.name ||
-                        `Employee ${selectedRequest.employee.id.slice(0, 8)}`
-                      : "Unknown"}
-                  </Text>
-                </View>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.infoLabel}>Amount</Text>
-                  <Text style={styles.infoValue}>
-                    {formatCurrency(selectedRequest.requested_amount)}
-                  </Text>
-                </View>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.infoLabel}>Attendance</Text>
-                  <Text style={styles.infoValue}>
-                    {formatCurrency(
-                      selectedRequest.calculated_attendance_amount
-                    )}
-                  </Text>
-                </View>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.infoLabel}>Commissions</Text>
-                  <Text style={styles.infoValue}>
-                    {formatCurrency(
-                      selectedRequest.calculated_commission_amount
-                    )}
-                  </Text>
-                </View>
-                {actionType === "approve" &&
-                  selectedRequest.calculated_commission_amount > 0 && (
+                {selectedRequest && (
+                  <View style={styles.modalBody}>
                     <View style={styles.requestInfo}>
-                      <Text style={styles.infoLabel}>Note</Text>
-                      <Text style={styles.infoNote}>
-                        Sales deduction will be applied based on employee's
-                        deduction rate
+                      <Text style={styles.infoLabel}>Employee</Text>
+                      <Text style={styles.infoValue}>
+                        {typeof selectedRequest.employee === "object" &&
+                        selectedRequest.employee
+                          ? selectedRequest.employee.name ||
+                            `Employee ${selectedRequest.employee.id.slice(
+                              0,
+                              8
+                            )}`
+                          : "Unknown"}
                       </Text>
                     </View>
-                  )}
+                    <View style={styles.requestInfo}>
+                      <Text style={styles.infoLabel}>Amount</Text>
+                      <Text style={styles.infoValue}>
+                        {formatCurrency(selectedRequest.requested_amount)}
+                      </Text>
+                    </View>
+                    <View style={styles.requestInfo}>
+                      <Text style={styles.infoLabel}>Attendance</Text>
+                      <Text style={styles.infoValue}>
+                        {formatCurrency(
+                          selectedRequest.calculated_attendance_amount
+                        )}
+                      </Text>
+                    </View>
+                    <View style={styles.requestInfo}>
+                      <Text style={styles.infoLabel}>Commissions</Text>
+                      <Text style={styles.infoValue}>
+                        {formatCurrency(
+                          selectedRequest.calculated_commission_amount
+                        )}
+                      </Text>
+                    </View>
+                    {actionType === "approve" &&
+                      selectedRequest.calculated_commission_amount > 0 && (
+                        <View style={styles.requestInfo}>
+                          <Text style={styles.infoLabel}>Note</Text>
+                          <Text style={styles.infoNote}>
+                            Sales deduction will be applied based on employee's
+                            deduction rate
+                          </Text>
+                        </View>
+                      )}
 
-                {actionType === "reject" && (
-                  <View style={styles.rejectionReasonContainer}>
-                    <Text style={styles.rejectionReasonLabel}>
-                      Rejection Reason *
-                    </Text>
-                    <TextInput
-                      style={styles.rejectionReasonInput}
-                      placeholder="Enter reason for rejection..."
-                      value={rejectionReason}
-                      onChangeText={setRejectionReason}
-                      multiline
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                    />
+                    {actionType === "reject" && (
+                      <View style={styles.rejectionReasonContainer}>
+                        <Text style={styles.rejectionReasonLabel}>
+                          Rejection Reason *
+                        </Text>
+                        <TextInput
+                          style={styles.rejectionReasonInput}
+                          placeholder="Enter reason for rejection..."
+                          value={rejectionReason}
+                          onChangeText={setRejectionReason}
+                          multiline
+                          numberOfLines={4}
+                          textAlignVertical="top"
+                        />
+                      </View>
+                    )}
                   </View>
                 )}
-              </View>
-            )}
 
-            <View style={styles.modalFooter}>
-              <Pressable
-                onPress={() => setShowActionModal(false)}
-                style={[styles.modalButton, styles.cancelButton]}
-                disabled={approveMutation.isPending || rejectMutation.isPending}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={confirmAction}
-                style={[styles.modalButton, styles.confirmButton]}
-                disabled={approveMutation.isPending || rejectMutation.isPending}
-              >
-                {approveMutation.isPending || rejectMutation.isPending ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <LinearGradient
-                    colors={
-                      actionType === "approve"
-                        ? ["#10b981", "#059669"]
-                        : ["#ef4444", "#dc2626"]
+                <View style={styles.modalFooter}>
+                  <Pressable
+                    onPress={() => setShowActionModal(false)}
+                    style={[styles.modalButton, styles.cancelButton]}
+                    disabled={
+                      approveMutation.isPending || rejectMutation.isPending
                     }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.confirmButtonGradient}
                   >
-                    <Text style={styles.confirmButtonText}>
-                      {actionType === "approve" ? "Approve" : "Reject"}
-                    </Text>
-                  </LinearGradient>
-                )}
-              </Pressable>
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </Pressable>
+                  <View
+                    style={[
+                      styles.modalButton,
+                      styles.confirmButtonShadowWrapper,
+                    ]}
+                  >
+                    <Pressable
+                      onPress={confirmAction}
+                      style={[styles.modalButton, styles.confirmButton]}
+                      disabled={
+                        approveMutation.isPending || rejectMutation.isPending
+                      }
+                    >
+                      {approveMutation.isPending || rejectMutation.isPending ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ) : (
+                        <LinearGradient
+                          colors={
+                            actionType === "approve"
+                              ? ["#10b981", "#059669"]
+                              : ["#ef4444", "#dc2626"]
+                          }
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.confirmButtonGradient}
+                        >
+                          <Text style={styles.confirmButtonText}>
+                            {actionType === "approve" ? "Approve" : "Reject"}
+                          </Text>
+                        </LinearGradient>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -391,17 +466,19 @@ function PayslipRequestCard({
           <XCircle size={16} color="#ef4444" />
           <Text style={styles.rejectButtonText}>Reject</Text>
         </Pressable>
-        <Pressable onPress={onApprove} style={styles.approveButton}>
-          <LinearGradient
-            colors={["#10b981", "#059669"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.approveButtonGradient}
-          >
-            <CheckCircle2 size={16} color="white" />
-            <Text style={styles.approveButtonText}>Approve</Text>
-          </LinearGradient>
-        </Pressable>
+        <View style={[styles.actionButton, styles.approveButtonShadowWrapper]}>
+          <Pressable onPress={onApprove} style={styles.approveButton}>
+            <LinearGradient
+              colors={["#10b981", "#059669"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.approveButtonGradient}
+            >
+              <CheckCircle2 size={16} color="white" />
+              <Text style={styles.approveButtonText}>Approve</Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -409,22 +486,46 @@ function PayslipRequestCard({
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 24,
-    marginBottom: 24,
+    marginBottom: scaleDimension(8),
+    backgroundColor: "transparent",
+  },
+  headerShadowWrapper: {
+    marginBottom: scaleDimension(24),
+    borderRadius: scaleDimension(24),
+    backgroundColor: "white",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   header: {
-    marginBottom: 20,
+    borderRadius: scaleDimension(24),
+    overflow: "hidden",
+  },
+  headerGradient: {
+    padding: scaleDimension(20),
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: scaleDimension(16),
   },
   headerIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#fdf2f8",
+    width: scaleDimension(56),
+    height: scaleDimension(56),
+    borderRadius: scaleDimension(16),
+    overflow: "hidden",
+  },
+  iconGradient: {
+    width: "100%",
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -432,199 +533,224 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 22,
+    fontSize: scaleDimension(24),
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.5,
+    marginBottom: scaleDimension(8),
     flexWrap: "wrap",
   },
-  subtitle: {
-    fontSize: 13,
-    color: "#6b7280",
-    marginTop: 4,
-    flexWrap: "wrap",
-  },
-  loadingContainer: {
-    padding: 40,
+  badgeContainer: {
+    flexDirection: "row",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 12,
-    color: "#6b7280",
-    fontSize: 14,
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(4),
+    paddingHorizontal: scaleDimension(10),
+    paddingVertical: scaleDimension(6),
+    borderRadius: scaleDimension(12),
+    backgroundColor: "rgba(236, 72, 153, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.2)",
+  },
+  badgeText: {
+    fontSize: scaleDimension(12),
+    fontWeight: "700",
+    color: "#ec4899",
   },
   emptyContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#f3f4f6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
+    paddingVertical: scaleDimension(40),
   },
   requestsList: {
-    gap: 16,
+    gap: scaleDimension(16),
   },
   requestCard: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
+    borderRadius: scaleDimension(20),
+    padding: scaleDimension(24),
+    borderWidth: 1.5,
     borderColor: "#f3f4f6",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
-        shadowRadius: 8,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
   },
   requestCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start", // Changed to flex-start so name wraps nicely
-    marginBottom: 16,
+    alignItems: "flex-start",
+    marginBottom: scaleDimension(20),
   },
   requestCardLeft: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: scaleDimension(14),
     flex: 1,
-    marginRight: 8,
+    marginRight: scaleDimension(8),
   },
   requestAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: scaleDimension(48),
+    height: scaleDimension(48),
+    borderRadius: scaleDimension(24),
     backgroundColor: "#ec4899",
     alignItems: "center",
     justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#ec4899",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   requestInfoContainer: {
     flex: 1, // Allow text to take up space and wrap
   },
   requestEmployeeName: {
-    fontSize: 16,
+    fontSize: scaleDimension(18),
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 2,
+    marginBottom: scaleDimension(4),
     flexWrap: "wrap",
+    letterSpacing: -0.3,
   },
   requestDate: {
-    fontSize: 12,
+    fontSize: scaleDimension(13),
     color: "#6b7280",
+    fontWeight: "500",
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    gap: scaleDimension(6),
+    paddingHorizontal: scaleDimension(12),
+    paddingVertical: scaleDimension(8),
+    borderRadius: scaleDimension(16),
     backgroundColor: "#fef3c7",
+    borderWidth: 1,
+    borderColor: "#fde68a",
   },
   statusText: {
-    fontSize: 11,
+    fontSize: scaleDimension(11),
     fontWeight: "700",
     color: "#f59e0b",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   requestAmountSection: {
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    marginBottom: scaleDimension(16),
+    paddingBottom: scaleDimension(16),
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#e5e7eb",
   },
   amountLabel: {
-    fontSize: 12,
+    fontSize: scaleDimension(13),
     color: "#6b7280",
-    marginBottom: 4,
+    marginBottom: scaleDimension(6),
     fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   amountValue: {
-    fontSize: 24,
+    fontSize: scaleDimension(28),
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.5,
   },
   requestBreakdown: {
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: scaleDimension(20),
+    gap: scaleDimension(10),
+    backgroundColor: "#f9fafb",
+    padding: scaleDimension(16),
+    borderRadius: scaleDimension(12),
+    borderWidth: 1,
+    borderColor: "#f3f4f6",
   },
   breakdownItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: scaleDimension(8),
   },
   breakdownLabel: {
-    fontSize: 13,
+    fontSize: scaleDimension(14),
     color: "#6b7280",
     flex: 1,
+    fontWeight: "500",
   },
   breakdownValue: {
-    fontSize: 14,
+    fontSize: scaleDimension(15),
     fontWeight: "700",
     color: "#111827",
   },
   requestActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: scaleDimension(12),
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
+    paddingVertical: scaleDimension(14),
+    borderRadius: scaleDimension(14),
+    gap: scaleDimension(8),
   },
   rejectButton: {
     backgroundColor: "#fef2f2",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#fee2e2",
   },
   rejectButtonText: {
-    fontSize: 14,
+    fontSize: scaleDimension(15),
     fontWeight: "700",
     color: "#ef4444",
   },
+  approveButtonShadowWrapper: {
+    flex: 1,
+    borderRadius: scaleDimension(14),
+    backgroundColor: "white",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#10b981",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
   approveButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: scaleDimension(14),
     overflow: "hidden",
   },
   approveButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    gap: 6,
+    paddingVertical: scaleDimension(14),
+    gap: scaleDimension(8),
   },
   approveButtonText: {
-    fontSize: 14,
+    fontSize: scaleDimension(15),
     fontWeight: "700",
     color: "white",
+    letterSpacing: 0.3,
   },
   modalOverlay: {
     flex: 1,
@@ -635,104 +761,146 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: 24,
-    width: "90%",
+  modalContentWrapper: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: scaleDimension(20),
+  },
+  modalShadowWrapper: {
+    width: "100%",
+    maxWidth: scaleDimension(400),
     maxHeight: "80%",
+    borderRadius: scaleDimension(28),
+    backgroundColor: "white",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.3,
-        shadowRadius: 16,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 8,
+        elevation: 12,
       },
     }),
+  },
+  modalContent: {
+    borderRadius: scaleDimension(28),
+    overflow: "hidden",
+    height: "100%", // Ensure content fills the wrapper
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    padding: scaleDimension(24),
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#e5e7eb",
+    backgroundColor: "#f9fafb",
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: scaleDimension(22),
     fontWeight: "800",
     color: "#111827",
+    letterSpacing: -0.5,
   },
   modalBody: {
-    padding: 20,
+    padding: scaleDimension(24),
     maxHeight: 400,
   },
   requestInfo: {
-    marginBottom: 16,
+    marginBottom: scaleDimension(18),
+    paddingBottom: scaleDimension(16),
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: scaleDimension(12),
     color: "#6b7280",
-    marginBottom: 4,
+    marginBottom: scaleDimension(6),
     fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: scaleDimension(18),
     fontWeight: "700",
     color: "#111827",
-    flexWrap: "wrap", // Ensure modal text wraps
+    flexWrap: "wrap",
+    letterSpacing: -0.3,
   },
   rejectionReasonContainer: {
-    marginTop: 8,
+    marginTop: scaleDimension(12),
   },
   rejectionReasonLabel: {
-    fontSize: 14,
+    fontSize: scaleDimension(14),
     fontWeight: "600",
     color: "#111827",
-    marginBottom: 8,
+    marginBottom: scaleDimension(10),
   },
   infoNote: {
-    fontSize: 12,
+    fontSize: scaleDimension(12),
     color: "#6b7280",
     fontStyle: "italic",
-    marginTop: 4,
+    marginTop: scaleDimension(6),
     flexWrap: "wrap",
+    lineHeight: scaleDimension(18),
   },
   rejectionReasonInput: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#e5e7eb",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
+    borderRadius: scaleDimension(14),
+    padding: scaleDimension(14),
+    fontSize: scaleDimension(14),
     color: "#111827",
-    minHeight: 100,
+    minHeight: scaleDimension(120),
     backgroundColor: "#f9fafb",
   },
   modalFooter: {
     flexDirection: "row",
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
+    padding: scaleDimension(24),
+    gap: scaleDimension(12),
+    borderTopWidth: 1.5,
+    borderTopColor: "#e5e7eb",
+    backgroundColor: "#f9fafb",
   },
   modalButton: {
     flex: 1,
-    height: 50,
-    borderRadius: 12,
+    height: scaleDimension(52),
+    borderRadius: scaleDimension(14),
     alignItems: "center",
     justifyContent: "center",
   },
   cancelButton: {
     backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: scaleDimension(16),
     fontWeight: "600",
     color: "#374151",
   },
+  confirmButtonShadowWrapper: {
+    borderRadius: scaleDimension(14),
+    backgroundColor: "white",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
   confirmButton: {
+    flex: 1,
+    borderRadius: scaleDimension(14),
     overflow: "hidden",
   },
   confirmButtonGradient: {
@@ -742,8 +910,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   confirmButtonText: {
-    fontSize: 16,
+    fontSize: scaleDimension(16),
     fontWeight: "700",
     color: "white",
+    letterSpacing: 0.3,
   },
 });

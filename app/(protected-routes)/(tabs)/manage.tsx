@@ -8,12 +8,22 @@ import {
   scaleDimension,
 } from "@/lib/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
-import { Settings } from "lucide-react-native";
-import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { RefreshCw, Settings } from "lucide-react-native";
+import React, { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-function LazyManageBookings() {
+function LazyManageBookings({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -44,10 +54,14 @@ function LazyManageBookings() {
     return <LoadingState variant="skeleton" />;
   }
 
-  return <Component />;
+  return <Component onRefetchReady={onRefetchReady} />;
 }
 
-function LazyManageServices() {
+function LazyManageServices({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -92,10 +106,14 @@ function LazyManageServices() {
     return <LoadingState variant="skeleton" />;
   }
 
-  return <Component />;
+  return <Component onRefetchReady={onRefetchReady} />;
 }
 
-function LazyManageEmployees() {
+function LazyManageEmployees({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -136,10 +154,14 @@ function LazyManageEmployees() {
     return <LoadingState variant="skeleton" />;
   }
 
-  return <Component />;
+  return <Component onRefetchReady={onRefetchReady} />;
 }
 
-function LazyManageVouchers() {
+function LazyManageVouchers({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -180,10 +202,14 @@ function LazyManageVouchers() {
     return <LoadingState variant="skeleton" />;
   }
 
-  return <Component />;
+  return <Component onRefetchReady={onRefetchReady} />;
 }
 
-function LazyManageGiftCertificates() {
+function LazyManageGiftCertificates({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -224,10 +250,62 @@ function LazyManageGiftCertificates() {
     return <LoadingState variant="skeleton" />;
   }
 
-  return <Component />;
+  return <Component onRefetchReady={onRefetchReady} />;
 }
 
-function LazyManageDiscounts() {
+function LazyManageCustomers({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
+  const [Component, setComponent] =
+    React.useState<React.ComponentType<any> | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [shouldLoad, setShouldLoad] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!shouldLoad) {
+      setShouldLoad(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!shouldLoad) return;
+
+    let isMounted = true;
+    setLoading(true);
+
+    import("@/components/manage/ManageCustomers")
+      .then((module) => {
+        if (isMounted) {
+          setComponent(() => module.default as React.ComponentType<any>);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading ManageCustomers:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldLoad]);
+
+  if (loading || !Component) {
+    return <LoadingState variant="skeleton" />;
+  }
+
+  return <Component onRefetchReady={onRefetchReady} />;
+}
+
+function LazyManageDiscounts({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -268,24 +346,153 @@ function LazyManageDiscounts() {
     return <LoadingState variant="skeleton" />;
   }
 
-  return <Component />;
+  return <Component onRefetchReady={onRefetchReady} />;
+}
+
+function LazyManageAttendance({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
+  const [Component, setComponent] =
+    React.useState<React.ComponentType<any> | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [shouldLoad, setShouldLoad] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!shouldLoad) {
+      setShouldLoad(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!shouldLoad) return;
+
+    let isMounted = true;
+    setLoading(true);
+
+    import("@/components/manage/ManageAttendance")
+      .then((module) => {
+        if (isMounted) {
+          setComponent(() => module.default as React.ComponentType<any>);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading ManageAttendance:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldLoad]);
+
+  if (loading || !Component) {
+    return <LoadingState variant="skeleton" />;
+  }
+
+  return <Component onRefetchReady={onRefetchReady} />;
+}
+
+function LazyManagePayslip({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
+  const [Component, setComponent] =
+    React.useState<React.ComponentType<any> | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [shouldLoad, setShouldLoad] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!shouldLoad) {
+      setShouldLoad(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!shouldLoad) return;
+
+    let isMounted = true;
+    setLoading(true);
+
+    import("@/components/manage/ManagePayslip")
+      .then((module) => {
+        if (isMounted) {
+          setComponent(() => module.default as React.ComponentType<any>);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading ManagePayslip:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldLoad]);
+
+  if (loading || !Component) {
+    return <LoadingState variant="skeleton" />;
+  }
+
+  return <Component onRefetchReady={onRefetchReady} />;
 }
 
 type ManageTab =
   | "bookings"
   | "services"
   | "employees"
+  | "customers"
   | "vouchers"
   | "giftCertificates"
-  | "discounts";
+  | "discounts"
+  | "attendance"
+  | "payslip";
 
 export default function ManageScreen() {
   const { hasRole, loading } = useAuth();
   const isOwner = hasRole("owner");
   const [activeTab, setActiveTab] = useState<ManageTab>("bookings");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Track refetch functions for each tab
+  const refetchFunctions = useRef<Record<ManageTab, (() => void) | null>>({
+    bookings: null,
+    services: null,
+    employees: null,
+    customers: null,
+    vouchers: null,
+    giftCertificates: null,
+    discounts: null,
+    attendance: null,
+    payslip: null,
+  });
 
   const containerPadding = getContainerPadding();
   const iconSize = scaleDimension(24);
+
+  const handleRefetch = async () => {
+    const refetchFn = refetchFunctions.current[activeTab];
+    if (refetchFn) {
+      setIsRefreshing(true);
+      try {
+        await refetchFn();
+      } finally {
+        setTimeout(() => setIsRefreshing(false), 500);
+      }
+    }
+  };
+
+  const handleRefetchReady = (tab: ManageTab) => (refetch: () => void) => {
+    refetchFunctions.current[tab] = refetch;
+  };
 
   if (loading) {
     return <LoadingState variant="skeleton" />;
@@ -305,9 +512,12 @@ export default function ManageScreen() {
     { id: "bookings", label: "Bookings" },
     { id: "services", label: "Services" },
     { id: "employees", label: "Employees" },
+    { id: "customers", label: "Customers" },
     { id: "vouchers", label: "Vouchers" },
     { id: "giftCertificates", label: "Gift Certificates" },
     { id: "discounts", label: "Discounts" },
+    { id: "attendance", label: "Attendance" },
+    { id: "payslip", label: "Payslip" },
   ];
 
   return (
@@ -323,6 +533,35 @@ export default function ManageScreen() {
             title="Manage"
             subtitle="Manage your business"
             icon={<Settings size={iconSize} color="white" />}
+            rightElement={
+              <Pressable
+                onPress={handleRefetch}
+                disabled={isRefreshing || !refetchFunctions.current[activeTab]}
+                style={({ pressed }) => [
+                  styles.refreshButton,
+                  (pressed ||
+                    isRefreshing ||
+                    !refetchFunctions.current[activeTab]) &&
+                    styles.refreshButtonPressed,
+                ]}
+              >
+                <LinearGradient
+                  colors={[
+                    "rgba(255, 255, 255, 0.25)",
+                    "rgba(255, 255, 255, 0.15)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.refreshButtonGradient}
+                >
+                  {isRefreshing ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <RefreshCw size={18} color="white" />
+                  )}
+                </LinearGradient>
+              </Pressable>
+            }
           />
 
           <View style={styles.tabsWrapper}>
@@ -359,66 +598,114 @@ export default function ManageScreen() {
             </ScrollView>
           </View>
 
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            <View
-              style={[
-                styles.tabContent,
-                activeTab !== "bookings" && styles.hiddenTab,
-              ]}
-              pointerEvents={activeTab === "bookings" ? "auto" : "none"}
-            >
-              <LazyManageBookings />
+          {activeTab === "customers" ? (
+            // Customers tab uses FlatList, so it shouldn't be wrapped in ScrollView
+            <View style={styles.content}>
+              <View style={styles.tabContent} pointerEvents="auto">
+                <LazyManageCustomers
+                  onRefetchReady={handleRefetchReady("customers")}
+                />
+              </View>
             </View>
-            <View
-              style={[
-                styles.tabContent,
-                activeTab !== "services" && styles.hiddenTab,
-              ]}
-              pointerEvents={activeTab === "services" ? "auto" : "none"}
+          ) : (
+            // Other tabs can use ScrollView
+            <ScrollView
+              style={styles.content}
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
             >
-              <LazyManageServices />
-            </View>
-            <View
-              style={[
-                styles.tabContent,
-                activeTab !== "employees" && styles.hiddenTab,
-              ]}
-              pointerEvents={activeTab === "employees" ? "auto" : "none"}
-            >
-              <LazyManageEmployees />
-            </View>
-            <View
-              style={[
-                styles.tabContent,
-                activeTab !== "vouchers" && styles.hiddenTab,
-              ]}
-              pointerEvents={activeTab === "vouchers" ? "auto" : "none"}
-            >
-              <LazyManageVouchers />
-            </View>
-            <View
-              style={[
-                styles.tabContent,
-                activeTab !== "giftCertificates" && styles.hiddenTab,
-              ]}
-              pointerEvents={activeTab === "giftCertificates" ? "auto" : "none"}
-            >
-              <LazyManageGiftCertificates />
-            </View>
-            <View
-              style={[
-                styles.tabContent,
-                activeTab !== "discounts" && styles.hiddenTab,
-              ]}
-              pointerEvents={activeTab === "discounts" ? "auto" : "none"}
-            >
-              <LazyManageDiscounts />
-            </View>
-          </ScrollView>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "bookings" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "bookings" ? "auto" : "none"}
+              >
+                <LazyManageBookings
+                  onRefetchReady={handleRefetchReady("bookings")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "services" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "services" ? "auto" : "none"}
+              >
+                <LazyManageServices
+                  onRefetchReady={handleRefetchReady("services")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "employees" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "employees" ? "auto" : "none"}
+              >
+                <LazyManageEmployees
+                  onRefetchReady={handleRefetchReady("employees")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "vouchers" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "vouchers" ? "auto" : "none"}
+              >
+                <LazyManageVouchers
+                  onRefetchReady={handleRefetchReady("vouchers")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "giftCertificates" && styles.hiddenTab,
+                ]}
+                pointerEvents={
+                  activeTab === "giftCertificates" ? "auto" : "none"
+                }
+              >
+                <LazyManageGiftCertificates
+                  onRefetchReady={handleRefetchReady("giftCertificates")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "discounts" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "discounts" ? "auto" : "none"}
+              >
+                <LazyManageDiscounts
+                  onRefetchReady={handleRefetchReady("discounts")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "attendance" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "attendance" ? "auto" : "none"}
+              >
+                <LazyManageAttendance
+                  onRefetchReady={handleRefetchReady("attendance")}
+                />
+              </View>
+              <View
+                style={[
+                  styles.tabContent,
+                  activeTab !== "payslip" && styles.hiddenTab,
+                ]}
+                pointerEvents={activeTab === "payslip" ? "auto" : "none"}
+              >
+                <LazyManagePayslip
+                  onRefetchReady={handleRefetchReady("payslip")}
+                />
+              </View>
+            </ScrollView>
+          )}
         </SafeAreaView>
       </LinearGradient>
     </View>
@@ -493,5 +780,23 @@ const styles = StyleSheet.create({
     color: "#ef4444",
     textAlign: "center",
     marginTop: scaleDimension(40),
+  },
+  refreshButton: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    overflow: "hidden",
+    ...PLATFORM.shadowMd,
+  },
+  refreshButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  refreshButtonGradient: {
+    width: scaleDimension(44),
+    height: scaleDimension(44),
+    borderRadius: scaleDimension(22),
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

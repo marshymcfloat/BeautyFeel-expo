@@ -24,6 +24,7 @@ import React, { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -122,8 +123,6 @@ export default function GiftCertificateFormModal({
   const watchedCustomerId = watch("customerId");
   const watchedCustomerName = watch("customerName");
 
-  // Fetch services and service sets for picker
-  // CHANGED: Query Key is now unique ("active-services-list") to avoid cache collisions with "all-services"
   const { data: servicesData, isLoading: isLoadingServices } = useQuery({
     queryKey: ["active-services-list"],
     queryFn: async () => {
@@ -135,10 +134,9 @@ export default function GiftCertificateFormModal({
       if (error) throw error;
       return (data || []) as Service[];
     },
-    enabled: visible, // Only fetch when modal is visible
+    enabled: visible,
   });
 
-  // CHANGED: Query Key is now unique ("active-service-sets-list")
   const { data: serviceSetsData, isLoading: isLoadingServiceSets } = useQuery({
     queryKey: ["active-service-sets-list"],
     queryFn: async () => {
@@ -158,14 +156,12 @@ export default function GiftCertificateFormModal({
       if (error) throw error;
       return (data || []) as ServiceSetWithItems[];
     },
-    enabled: visible, // Only fetch when modal is visible
+    enabled: visible,
   });
 
-  // CHANGED: Robust check for array type to prevent .map crashes
   const services = Array.isArray(servicesData) ? servicesData : [];
   const serviceSets = Array.isArray(serviceSetsData) ? serviceSetsData : [];
 
-  // Generate new code when modal opens
   useEffect(() => {
     if (visible) {
       let isMounted = true;
@@ -189,7 +185,6 @@ export default function GiftCertificateFormModal({
     }
   }, [visible, setValue, toast]);
 
-  // Reset form when modal closes
   useEffect(() => {
     if (!visible) {
       reset();
@@ -321,7 +316,6 @@ export default function GiftCertificateFormModal({
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-gift-certificates"] });
 
-        // Send email if customer email is provided
         if (customerEmail && customerEmail.trim()) {
           const servicesList = selectedServices.map((s) => ({
             name: s.service.title,
@@ -422,7 +416,10 @@ export default function GiftCertificateFormModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modalContent}>
           <ScrollView
@@ -770,7 +767,7 @@ export default function GiftCertificateFormModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Service/Service Set Picker Modal */}
       {showServicePicker && (
@@ -846,49 +843,47 @@ export default function GiftCertificateFormModal({
                       </Pressable>
                     ))
                   )
-                ) : servicePickerType === "serviceSets" ? (
-                  isLoadingServiceSets ? (
-                    <View style={styles.pickerLoading}>
-                      <ActivityIndicator size="small" color="#ec4899" />
-                    </View>
-                  ) : serviceSets.length === 0 ? (
-                    <View style={styles.pickerEmpty}>
-                      <ResponsiveText
-                        variant="sm"
-                        style={styles.pickerEmptyText}
-                        numberOfLines={2}
-                      >
-                        No service sets available
-                      </ResponsiveText>
-                    </View>
-                  ) : (
-                    serviceSets.map((serviceSet) => (
-                      <Pressable
-                        key={serviceSet.id}
-                        onPress={() => addServiceSet(serviceSet)}
-                        style={styles.pickerItem}
-                      >
-                        <View style={styles.pickerItemInfo}>
-                          <ResponsiveText
-                            variant="sm"
-                            style={styles.pickerItemTitle}
-                            numberOfLines={1}
-                          >
-                            {serviceSet.title}
-                          </ResponsiveText>
-                          <ResponsiveText
-                            variant="xs"
-                            style={styles.pickerItemSubtitle}
-                            numberOfLines={1}
-                          >
-                            {formatCurrency(serviceSet.price)}
-                          </ResponsiveText>
-                        </View>
-                        <Plus size={20} color="#ec4899" />
-                      </Pressable>
-                    ))
-                  )
-                ) : null}
+                ) : isLoadingServiceSets ? (
+                  <View style={styles.pickerLoading}>
+                    <ActivityIndicator size="small" color="#ec4899" />
+                  </View>
+                ) : serviceSets.length === 0 ? (
+                  <View style={styles.pickerEmpty}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.pickerEmptyText}
+                      numberOfLines={2}
+                    >
+                      No service sets available
+                    </ResponsiveText>
+                  </View>
+                ) : (
+                  serviceSets.map((serviceSet) => (
+                    <Pressable
+                      key={serviceSet.id}
+                      onPress={() => addServiceSet(serviceSet)}
+                      style={styles.pickerItem}
+                    >
+                      <View style={styles.pickerItemInfo}>
+                        <ResponsiveText
+                          variant="sm"
+                          style={styles.pickerItemTitle}
+                          numberOfLines={1}
+                        >
+                          {serviceSet.title}
+                        </ResponsiveText>
+                        <ResponsiveText
+                          variant="xs"
+                          style={styles.pickerItemSubtitle}
+                          numberOfLines={1}
+                        >
+                          {formatCurrency(serviceSet.price)}
+                        </ResponsiveText>
+                      </View>
+                      <Plus size={20} color="#ec4899" />
+                    </Pressable>
+                  ))
+                )}
               </ScrollView>
             </View>
           </View>

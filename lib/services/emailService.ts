@@ -33,6 +33,16 @@ export interface BookingEmailData {
   notes?: string | null;
 }
 
+export interface AppointmentStepReminderData {
+  customerName: string;
+  customerEmail: string;
+  serviceTitle: string;
+  currentStep: number;
+  nextStepLabel: string;
+  recommendedDate: string;
+  daysUntil: string;
+}
+
 /**
  * Send booking confirmation email
  */
@@ -260,6 +270,98 @@ export async function sendBookingReminder(
     return { success: true };
   } catch (error) {
     console.error("Unexpected error sending reminder email:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Send appointment step reminder email
+ * Reminds customers about upcoming recommended appointment dates for multi-appointment services
+ */
+export async function sendAppointmentStepReminder(
+  data: AppointmentStepReminderData,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!RESEND_API_KEY) {
+      return { success: false, error: "Resend API key not configured" };
+    }
+
+    if (!data.customerEmail) {
+      return { success: false, error: "Customer email is required" };
+    }
+
+    const response = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "Beautyfeel <noreply@beautyfeel.net>",
+        to: data.customerEmail,
+        subject: `Upcoming Appointment: ${data.serviceTitle} - ${data.nextStepLabel}`,
+        html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Appointment Step Reminder</title>
+          </head>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #8b5cf6, #a855f7); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: white; margin: 0;">📅 Appointment Reminder</h1>
+            </div>
+            
+            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 16px;">Hi ${data.customerName},</p>
+              
+              <p>This is a friendly reminder about your ongoing <strong>${data.serviceTitle}</strong> treatment.</p>
+              
+              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6;">
+                <h2 style="margin-top: 0; color: #8b5cf6;">Your Next Appointment</h2>
+                <p><strong>Service:</strong> ${data.serviceTitle}</p>
+                <p><strong>Step:</strong> ${data.nextStepLabel}</p>
+                <p><strong>Current Progress:</strong> Step ${data.currentStep}</p>
+                <p><strong>Recommended Date:</strong> ${data.recommendedDate}</p>
+                <p><strong>Time Until:</strong> ${data.daysUntil}</p>
+              </div>
+              
+              <p style="background: #ede9fe; padding: 15px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                <strong>💡 Don't forget!</strong> It's recommended to schedule your next appointment for <strong>${data.recommendedDate}</strong> to maintain the best results from your treatment.
+              </p>
+              
+              <p style="margin-top: 30px;">
+                Please contact us to schedule your next appointment. We're here to help you complete your treatment successfully!
+              </p>
+              
+              <p>Thank you for choosing Beautyfeel!</p>
+              
+              <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+                This is an automated reminder. If you have any questions, please contact us directly.
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Error sending appointment step reminder email:", errorData);
+      return {
+        success: false,
+        error: errorData.message || `HTTP ${response.status}`,
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Unexpected error sending appointment step reminder email:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

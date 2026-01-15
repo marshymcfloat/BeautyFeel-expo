@@ -51,6 +51,7 @@ export const createBookingSchema = z.object({
   voucherCode: z.string().optional(), // Keep for backward compatibility, but prefer voucher + grandDiscount
   voucher: z.number().int().positive().nullable().optional(), // Voucher ID
   grandDiscount: z.number().min(0).optional().default(0), // Discount amount from voucher
+  applyDiscount: z.boolean().optional().default(true),
 }).refine((data) => {
   // Either customerId (existing) or customerName (new) must be provided
   const hasCustomerId = data.customerId && data.customerId > 0;

@@ -3,6 +3,18 @@ import type { Database } from "@/database.types";
 
 type PayslipRequest = Database["public"]["Tables"]["payslip_request"]["Row"];
 type PayslipRelease = Database["public"]["Tables"]["payslip_release"]["Row"];
+type Branch = Database["public"]["Enums"]["branch"];
+
+// Helper to determine branches to include based on owner's branch
+function getBranchesForOwner(ownerBranch: Branch | null): Branch[] {
+  if (ownerBranch === "SKIN") {
+    return ["NAILS", "SKIN", "MASSAGE"]; // All except LASHES
+  }
+  if (ownerBranch === "LASHES") {
+    return ["LASHES"]; // Only LASHES
+  }
+  return ["NAILS", "SKIN", "LASHES", "MASSAGE"]; // All branches for other owners/admins
+}
 
 export interface PayslipRequestWithEmployee extends PayslipRequest {
   employee: {
@@ -122,13 +134,15 @@ export async function createPayslipRequestAction(
 /**
  * Get all payslip requests (for owners)
  */
-export async function getAllPayslipRequests(): Promise<{
+export async function getAllPayslipRequests(ownerBranch: Branch | null = null): Promise<{
   success: boolean;
   data?: PayslipRequestWithEmployee[];
   error?: string;
 }> {
   try {
-    const { data, error } = await supabase
+    const branchesToInclude = getBranchesForOwner(ownerBranch);
+    
+    let query = supabase
       .from("payslip_request")
       .select(
         `
@@ -137,21 +151,49 @@ export async function getAllPayslipRequests(): Promise<{
           id,
           user_id,
           role,
-          name
+          name,
+          branch
         )
       `
       )
       .order("requested_at", { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching payslip requests:", error);
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: data as any };
+    // Handle null/undefined data
+    if (!data || !Array.isArray(data)) {
+      return { success: true, data: [] };
+    }
+
+    // Filter by employee branch after fetching
+    const filteredData = ownerBranch
+      ? data.filter((request: any) => {
+          try {
+            const employee = request?.employee;
+            // Handle both object and array cases
+            const employeeBranch = Array.isArray(employee) 
+              ? employee[0]?.branch 
+              : employee?.branch;
+            
+            return employeeBranch && branchesToInclude.includes(employeeBranch);
+          } catch (filterError) {
+            console.error("Error filtering payslip request:", filterError);
+            return false;
+          }
+        })
+      : data;
+
+    return { success: true, data: filteredData as any };
   } catch (error: any) {
     console.error("Unexpected error fetching payslip requests:", error);
-    return { success: false, error: error.message || "An unexpected error occurred" };
+    // Provide more detailed error information
+    const errorMessage = error?.message || error?.toString() || "An unexpected error occurred";
+    return { success: false, error: errorMessage };
   }
 }
 

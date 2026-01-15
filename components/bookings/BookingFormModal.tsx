@@ -1,10 +1,11 @@
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
 import type { Database } from "@/database.types";
+import { getUpcomingAppointmentSessions } from "@/lib/actions/appointmentSessionActions";
 import {
   createBookingAction,
   updateBookingAction,
 } from "@/lib/actions/bookingActions";
-import { getActiveDiscount } from "@/lib/actions/discountActions";
+import { getActiveDiscounts } from "@/lib/actions/discountActions";
 import type { GiftCertificateWithRelations } from "@/lib/actions/giftCertificateActions";
 import type { ServiceSetWithItems } from "@/lib/actions/serviceSetActions";
 import { getServiceSetsForBranch } from "@/lib/actions/serviceSetActions";
@@ -18,16 +19,19 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
-import { Plus, X } from "lucide-react-native";
+import { CheckCircle2, Plus, Tag, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Resolver, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
   View,
 } from "react-native";
@@ -57,7 +61,7 @@ interface SelectedService {
   serviceId: number;
   quantity: number;
   service: Service;
-  originalPrice?: number; // Store original price if discounted
+  originalPrice?: number;
 }
 
 interface SelectedServiceSet {
@@ -87,6 +91,7 @@ export default function BookingFormModal({
     "services" | "serviceSets"
   >("services");
   const [isCancelling, setIsCancelling] = useState(false);
+  const [shouldApplyDiscount, setShouldApplyDiscount] = useState(true);
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
@@ -160,15 +165,30 @@ export default function BookingFormModal({
 
   const watchedBranch = watch("branch");
 
-  // Fetch active discount
-  const { data: activeDiscountData } = useQuery({
-    queryKey: ["active-discount"],
-    queryFn: getActiveDiscount,
+  const { data: activeDiscountsData } = useQuery({
+    queryKey: ["active-discounts"],
+    queryFn: getActiveDiscounts,
   });
 
-  const activeDiscount = activeDiscountData?.success
-    ? activeDiscountData.data
-    : null;
+  const activeDiscounts = activeDiscountsData?.success
+    ? activeDiscountsData.data
+    : [];
+
+  const activeDiscount = useMemo(() => {
+    if (!activeDiscounts || activeDiscounts.length === 0) return null;
+
+    // Find the first matching discount for this branch
+    return (
+      activeDiscounts.find((d) => {
+        const branchMatches = !d.branch || d.branch === watchedBranch;
+        const now = new Date();
+        const startDate = new Date(d.start_date);
+        const endDate = new Date(d.end_date);
+        const isDateValid = now >= startDate && now <= endDate;
+        return branchMatches && isDateValid;
+      }) || null
+    );
+  }, [activeDiscounts, watchedBranch]);
 
   const { data: services, isLoading: servicesLoading } = useQuery({
     queryKey: ["services", watchedBranch],
@@ -199,25 +219,18 @@ export default function BookingFormModal({
     ? (serviceSetsData.data as any[])
     : [];
 
-  // Calculate discounted prices for services
   const discountedServices = useMemo(() => {
-    if (!activeDiscount || !services) return selectedServices;
+    if (!activeDiscount || !services || !shouldApplyDiscount)
+      return selectedServices;
 
     const discountServiceIds = new Set(
       activeDiscount.discount_services?.map((ds) => ds.service_id) || []
     );
 
-    // Check if discount applies to this branch
     const branchMatches =
       !activeDiscount.branch || activeDiscount.branch === watchedBranch;
 
-    // Check if discount is currently active (date range)
-    const now = new Date();
-    const startDate = new Date(activeDiscount.start_date);
-    const endDate = new Date(activeDiscount.end_date);
-    const isDateValid = now >= startDate && now <= endDate;
-
-    if (!branchMatches || !isDateValid) {
+    if (!branchMatches) {
       return selectedServices;
     }
 
@@ -247,15 +260,62 @@ export default function BookingFormModal({
           ...selectedService.service,
           price: discountedPrice,
         },
-        originalPrice, // Store original for display
+        originalPrice,
       };
     });
-  }, [selectedServices, activeDiscount, services, watchedBranch]);
+  }, [
+    selectedServices,
+    activeDiscount,
+    services,
+    watchedBranch,
+    shouldApplyDiscount,
+  ]);
 
   const watchedDate = watch("appointmentDate");
   const watchedTime = watch("appointmentTime");
   const watchedCustomerEmail = watch("customerEmail");
   const watchedCustomerName = watch("customerName");
+  const watchedCustomerId = watch("customerId");
+
+  const { data: upcomingSessionsData, refetch: refetchUpcomingSessions } =
+    useQuery({
+      queryKey: ["upcomingAppointmentSessions", watchedCustomerId],
+      queryFn: () => getUpcomingAppointmentSessions(watchedCustomerId || 0),
+      enabled: !!watchedCustomerId && watchedCustomerId > 0 && !isEditMode,
+    });
+
+  useEffect(() => {
+    if (watchedCustomerId && watchedCustomerId > 0 && !isEditMode) {
+      refetchUpcomingSessions();
+    }
+  }, [watchedCustomerId, isEditMode, refetchUpcomingSessions]);
+
+  const upcomingSessions =
+    upcomingSessionsData?.success && upcomingSessionsData.data
+      ? upcomingSessionsData.data
+      : [];
+
+  const matchingAppointmentSession = useMemo(() => {
+    if (!upcomingSessions.length || !selectedServices.length) return null;
+
+    for (const session of upcomingSessions) {
+      for (const selectedService of selectedServices) {
+        if (
+          session.next_service_id === selectedService.serviceId &&
+          session.next_step_order === session.current_step
+        ) {
+          return {
+            session,
+            matchingService: selectedService,
+            stepNumber: session.current_step,
+            stepLabel:
+              session.next_step_label || `Step ${session.current_step}`,
+          };
+        }
+      }
+    }
+    return null;
+  }, [upcomingSessions, selectedServices]);
 
   const handleCustomerSelect = (customerId: number, customer: Customer) => {
     setSelectedCustomer(customer);
@@ -280,7 +340,6 @@ export default function BookingFormModal({
     setValue("customerEmail", "");
   };
 
-  // Reset form when modal opens/closes or when existingBooking/giftCertificate changes
   useEffect(() => {
     if (visible && existingBooking) {
       const initialValues = getInitialValues();
@@ -290,7 +349,6 @@ export default function BookingFormModal({
         setSelectedCustomer(existingBooking.customer);
       }
     } else if (visible && !existingBooking) {
-      // If gift certificate is provided, pre-fill customer info
       const customerId = giftCertificate?.customer_id || 0;
       const customerName =
         giftCertificate?.customer_name || giftCertificate?.customer?.name || "";
@@ -315,8 +373,8 @@ export default function BookingFormModal({
       });
       setSelectedServices([]);
       setSelectedServiceSets([]);
+      setShouldApplyDiscount(true);
       if (giftCertificate?.customer) {
-        // Fetch full customer data if needed
         setSelectedCustomer({
           id: giftCertificate.customer.id,
           name: giftCertificate.customer.name,
@@ -333,7 +391,6 @@ export default function BookingFormModal({
     }
   }, [visible, existingBooking, giftCertificate, defaultDate, reset]);
 
-  // Map services for edit mode when services data is available
   useEffect(() => {
     if (isEditMode && existingBooking && services) {
       if (existingBooking.service_bookings) {
@@ -373,14 +430,9 @@ export default function BookingFormModal({
     }
   }, [services, watch, isEditMode, selectedServices.length]);
 
-  // Note: Selected services are preserved when switching branches
-  // This allows users to filter services by branch while keeping their selections
-
-  // Pre-fill services and service sets from gift certificate
   useEffect(() => {
     if (isEditMode || !giftCertificate || !visible) return;
 
-    // Load services from gift certificate
     if (
       giftCertificate.services &&
       giftCertificate.services.length > 0 &&
@@ -411,7 +463,6 @@ export default function BookingFormModal({
       }
     }
 
-    // Load service sets from gift certificate
     if (
       giftCertificate.service_sets &&
       giftCertificate.service_sets.length > 0 &&
@@ -458,6 +509,14 @@ export default function BookingFormModal({
       queryClient.invalidateQueries({ queryKey: ["services-served-today"] });
       queryClient.invalidateQueries({ queryKey: ["all-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === "upcomingAppointmentSessions",
+      });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === "customerSearch",
+      });
 
       reset({
         customerId: 0,
@@ -476,6 +535,7 @@ export default function BookingFormModal({
       setSelectedServices([]);
       setSelectedServiceSets([]);
       setSelectedCustomer(null);
+      setShouldApplyDiscount(true);
       onClose();
       onSuccess?.();
     },
@@ -627,6 +687,7 @@ export default function BookingFormModal({
         serviceSetId: s.serviceSetId,
         quantity: s.quantity,
       })),
+      applyDiscount: shouldApplyDiscount,
     });
   };
 
@@ -781,10 +842,14 @@ export default function BookingFormModal({
           setSelectedServices([]);
           setSelectedServiceSets([]);
           setSelectedCustomer(null);
+          setShouldApplyDiscount(true);
           onClose();
         }}
       >
-        <View style={styles.modalContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
           <Pressable
             style={styles.backdrop}
             onPress={() => {
@@ -822,6 +887,7 @@ export default function BookingFormModal({
                     reset();
                     setSelectedServices([]);
                     setSelectedServiceSets([]);
+                    setShouldApplyDiscount(true);
                     onClose();
                   }}
                   style={styles.closeButton}
@@ -887,6 +953,50 @@ export default function BookingFormModal({
                         {errors.customerEmail.message}
                       </ResponsiveText>
                     )}
+                  </View>
+                )}
+
+                {/* Show appointment session match indicator */}
+                {!isEditMode && matchingAppointmentSession && (
+                  <View style={styles.appointmentMatchBanner}>
+                    <View style={styles.appointmentMatchContent}>
+                      <CheckCircle2
+                        size={scaleDimension(20)}
+                        color="#10b981"
+                        style={{ marginRight: scaleDimension(8) }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <ResponsiveText
+                          variant="sm"
+                          style={styles.appointmentMatchTitle}
+                        >
+                          ✓ This booking will fulfill an appointment step
+                        </ResponsiveText>
+                        <ResponsiveText
+                          variant="xs"
+                          style={styles.appointmentMatchDetails}
+                        >
+                          {matchingAppointmentSession.session.service_title} -{" "}
+                          {matchingAppointmentSession.stepLabel} (Step{" "}
+                          {matchingAppointmentSession.stepNumber} of{" "}
+                          {matchingAppointmentSession.session.total_steps ||
+                            "?"}
+                          )
+                        </ResponsiveText>
+                        {matchingAppointmentSession.session
+                          .next_recommended_date && (
+                          <ResponsiveText
+                            variant="xs"
+                            style={styles.appointmentMatchDate}
+                          >
+                            Recommended date:{" "}
+                            {new Date(
+                              matchingAppointmentSession.session.next_recommended_date
+                            ).toLocaleDateString()}
+                          </ResponsiveText>
+                        )}
+                      </View>
+                    </View>
                   </View>
                 )}
 
@@ -1023,16 +1133,41 @@ export default function BookingFormModal({
                       </View>
                     </View>
                   ) : (
-                    <SelectedItemsList
-                      services={discountedServices}
-                      serviceSets={selectedServiceSets}
-                      onRemoveService={removeService}
-                      onUpdateServiceQuantity={updateQuantity}
-                      onRemoveServiceSet={removeServiceSet}
-                      onUpdateServiceSetQuantity={updateServiceSetQuantity}
-                      grandDiscount={watch("grandDiscount") || 0}
-                      activeDiscount={activeDiscount}
-                    />
+                    <>
+                      {activeDiscount && (
+                        <View style={styles.discountToggleContainer}>
+                          <View style={styles.discountInfo}>
+                            <Tag size={scaleDimension(16)} color="#10b981" />
+                            <ResponsiveText
+                              variant="sm"
+                              style={styles.discountText}
+                            >
+                              Apply Discount: {activeDiscount.name}
+                            </ResponsiveText>
+                          </View>
+                          <Switch
+                            value={shouldApplyDiscount}
+                            onValueChange={setShouldApplyDiscount}
+                            trackColor={{ false: "#d1d5db", true: "#fbcfe8" }}
+                            thumbColor={
+                              shouldApplyDiscount ? "#ec4899" : "#f4f3f4"
+                            }
+                          />
+                        </View>
+                      )}
+                      <SelectedItemsList
+                        services={discountedServices}
+                        serviceSets={selectedServiceSets}
+                        onRemoveService={removeService}
+                        onUpdateServiceQuantity={updateQuantity}
+                        onRemoveServiceSet={removeServiceSet}
+                        onUpdateServiceSetQuantity={updateServiceSetQuantity}
+                        grandDiscount={watch("grandDiscount") || 0}
+                        activeDiscount={
+                          shouldApplyDiscount ? activeDiscount : null
+                        }
+                      />
+                    </>
                   )}
                 </View>
 
@@ -1296,7 +1431,7 @@ export default function BookingFormModal({
               </Pressable>
             </View>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -1379,6 +1514,31 @@ const styles = StyleSheet.create({
     color: "#ef4444",
     marginTop: scaleDimension(4),
     marginLeft: scaleDimension(4),
+  },
+  appointmentMatchBanner: {
+    backgroundColor: "#d1fae5",
+    borderRadius: scaleDimension(12),
+    padding: scaleDimension(16),
+    marginBottom: scaleDimension(16),
+    borderLeftWidth: 4,
+    borderLeftColor: "#10b981",
+  },
+  appointmentMatchContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  appointmentMatchTitle: {
+    color: "#065f46",
+    fontWeight: "600",
+    marginBottom: scaleDimension(4),
+  },
+  appointmentMatchDetails: {
+    color: "#047857",
+    marginBottom: scaleDimension(2),
+  },
+  appointmentMatchDate: {
+    color: "#059669",
+    fontStyle: "italic",
   },
   branchContainer: {
     flexDirection: "row",
@@ -1659,6 +1819,29 @@ const styles = StyleSheet.create({
   serviceOptionDetails: {
     color: "#6b7280",
     marginTop: scaleDimension(4),
+    flexWrap: "wrap",
+  },
+  discountToggleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
+    padding: scaleDimension(12),
+    borderRadius: scaleDimension(12),
+    marginBottom: scaleDimension(12),
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  discountInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(8),
+    flex: 1,
+  },
+  discountText: {
+    color: "#15803d",
+    fontWeight: "600",
+    flex: 1,
     flexWrap: "wrap",
   },
 });

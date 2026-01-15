@@ -1,13 +1,18 @@
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
+import { Tables } from "@/database.types";
 import {
   createVoucherAction,
   sendVoucherEmailAction,
+  voucherCodeExists,
 } from "@/lib/actions/voucherActions";
-import { Tables } from "@/database.types";
-import { scaleDimension, percentageHeight } from "@/lib/utils/responsive";
-import { generateVoucherCode, generateUniqueVoucherCode, isValidVoucherCode } from "@/lib/utils/voucherCodeGenerator";
-import { voucherCodeExists } from "@/lib/actions/voucherActions";
+import { percentageHeight, scaleDimension } from "@/lib/utils/responsive";
+import {
+  generateUniqueVoucherCode,
+  generateVoucherCode,
+  isValidVoucherCode,
+} from "@/lib/utils/voucherCodeGenerator";
 import { zodResolver } from "@hookform/resolvers/zod";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { Calendar, RefreshCw, X } from "lucide-react-native";
@@ -15,6 +20,7 @@ import React, { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -23,7 +29,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { z } from "zod";
 import CustomerSearchInput from "../bookings/CustomerSearchInput";
 import { FormField } from "../form/FormField";
@@ -60,9 +65,8 @@ export default function VoucherFormModal({
   onSuccess,
 }: VoucherFormModalProps) {
   const toast = useToast();
-  const [selectedCustomer, setSelectedCustomer] = useState<
-    Tables<"customer"> | null
-  >(null);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<Tables<"customer"> | null>(null);
   const [customerName, setCustomerName] = useState<string>("");
   const [tempDate, setTempDate] = useState<Date>(new Date());
 
@@ -93,7 +97,7 @@ export default function VoucherFormModal({
   useEffect(() => {
     if (visible) {
       let isMounted = true;
-      
+
       // Generate a unique code with duplicate checking
       generateUniqueVoucherCode(voucherCodeExists)
         .then((newCode) => {
@@ -112,18 +116,18 @@ export default function VoucherFormModal({
           console.error("Failed to generate unique voucher code:", error);
           if (isMounted) {
             // Fallback to regular generation if unique generation fails
-          const fallbackCode = generateVoucherCode();
-          reset({
-            code: fallbackCode,
-            value: 0,
-            customerId: null,
-            expiresOn: null,
-          });
+            const fallbackCode = generateVoucherCode();
+            reset({
+              code: fallbackCode,
+              value: 0,
+              customerId: null,
+              expiresOn: null,
+            });
             setSelectedCustomer(null);
             setCustomerName("");
           }
         });
-      
+
       return () => {
         isMounted = false;
       };
@@ -142,7 +146,10 @@ export default function VoucherFormModal({
     }
   };
 
-  const handleCustomerSelect = (customerId: number, customer: Tables<"customer">) => {
+  const handleCustomerSelect = (
+    customerId: number,
+    customer: Tables<"customer">
+  ) => {
     setSelectedCustomer(customer);
     setValue("customerId", customerId);
     setCustomerName(customer.name);
@@ -234,7 +241,10 @@ export default function VoucherFormModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modalContent}>
           <ScrollView
@@ -242,7 +252,11 @@ export default function VoucherFormModal({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <ResponsiveText variant="2xl" style={styles.headerTitle} numberOfLines={1}>
+              <ResponsiveText
+                variant="2xl"
+                style={styles.headerTitle}
+                numberOfLines={1}
+              >
                 Create Voucher
               </ResponsiveText>
               <Pressable onPress={handleClose} style={styles.closeButton}>
@@ -252,20 +266,24 @@ export default function VoucherFormModal({
 
             <View style={styles.form}>
               <View style={styles.codeSection}>
-                  <FormField
-                    control={control}
-                    name="code"
-                    label="Voucher Code (6 characters)"
-                    placeholder="BF1234"
-                    autoCapitalize="characters"
-                    maxLength={6}
-                  />
+                <FormField
+                  control={control}
+                  name="code"
+                  label="Voucher Code (6 characters)"
+                  placeholder="BF1234"
+                  autoCapitalize="characters"
+                  maxLength={6}
+                />
                 <Pressable
                   onPress={handleGenerateCode}
                   style={styles.generateButton}
                 >
                   <RefreshCw size={18} color="#ec4899" />
-                  <ResponsiveText variant="sm" style={styles.generateButtonText} numberOfLines={1}>
+                  <ResponsiveText
+                    variant="sm"
+                    style={styles.generateButtonText}
+                    numberOfLines={1}
+                  >
                     Generate
                   </ResponsiveText>
                 </Pressable>
@@ -274,9 +292,16 @@ export default function VoucherFormModal({
               <Controller
                 control={control}
                 name="value"
-                render={({ field: { onChange, value }, fieldState: { error } }) => (
+                render={({
+                  field: { onChange, value },
+                  fieldState: { error },
+                }) => (
                   <View>
-                    <ResponsiveText variant="sm" style={styles.sectionLabel} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.sectionLabel}
+                      numberOfLines={1}
+                    >
                       Voucher Value
                     </ResponsiveText>
                     <TextInput
@@ -286,7 +311,11 @@ export default function VoucherFormModal({
                       ]}
                       placeholder="0.00"
                       keyboardType="decimal-pad"
-                      value={value === null || value === undefined ? "" : String(value)}
+                      value={
+                        value === null || value === undefined
+                          ? ""
+                          : String(value)
+                      }
                       onChangeText={(text) => {
                         const numValue = parseFloat(text) || 0;
                         onChange(numValue);
@@ -294,7 +323,11 @@ export default function VoucherFormModal({
                       placeholderTextColor="#9CA3AF"
                     />
                     {error && (
-                      <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="xs"
+                        style={styles.errorText}
+                        numberOfLines={1}
+                      >
                         {error.message}
                       </ResponsiveText>
                     )}
@@ -305,7 +338,10 @@ export default function VoucherFormModal({
               <Controller
                 control={control}
                 name="expiresOn"
-                render={({ field: { onChange, value }, fieldState: { error } }) => {
+                render={({
+                  field: { onChange, value },
+                  fieldState: { error },
+                }) => {
                   const selectedDate = value ? new Date(value) : null;
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
@@ -348,7 +384,11 @@ export default function VoucherFormModal({
 
                   return (
                     <View>
-                      <ResponsiveText variant="sm" style={styles.sectionLabel} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.sectionLabel}
+                        numberOfLines={1}
+                      >
                         Expiration Date (Optional)
                       </ResponsiveText>
                       <Pressable
@@ -400,18 +440,30 @@ export default function VoucherFormModal({
                                       onPress={() => setShowDatePicker(false)}
                                       style={styles.datePickerCancelButton}
                                     >
-                                      <ResponsiveText variant="md" style={styles.datePickerCancelText} numberOfLines={1}>
+                                      <ResponsiveText
+                                        variant="md"
+                                        style={styles.datePickerCancelText}
+                                        numberOfLines={1}
+                                      >
                                         Cancel
                                       </ResponsiveText>
                                     </Pressable>
-                                    <ResponsiveText variant="md" style={styles.datePickerModalTitle} numberOfLines={1}>
+                                    <ResponsiveText
+                                      variant="md"
+                                      style={styles.datePickerModalTitle}
+                                      numberOfLines={1}
+                                    >
                                       Select Date
                                     </ResponsiveText>
                                     <Pressable
                                       onPress={handleDone}
                                       style={styles.datePickerDoneButton}
                                     >
-                                      <ResponsiveText variant="md" style={styles.datePickerDoneText} numberOfLines={1}>
+                                      <ResponsiveText
+                                        variant="md"
+                                        style={styles.datePickerDoneText}
+                                        numberOfLines={1}
+                                      >
                                         Done
                                       </ResponsiveText>
                                     </Pressable>
@@ -438,7 +490,11 @@ export default function VoucherFormModal({
                         </>
                       )}
                       {error && (
-                        <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={1}>
+                        <ResponsiveText
+                          variant="xs"
+                          style={styles.errorText}
+                          numberOfLines={1}
+                        >
                           {error.message}
                         </ResponsiveText>
                       )}
@@ -448,7 +504,11 @@ export default function VoucherFormModal({
               />
 
               <View style={styles.customerSection}>
-                <ResponsiveText variant="sm" style={styles.sectionLabel} numberOfLines={1}>
+                <ResponsiveText
+                  variant="sm"
+                  style={styles.sectionLabel}
+                  numberOfLines={1}
+                >
                   Customer (Optional)
                 </ResponsiveText>
                 <CustomerSearchInput
@@ -460,12 +520,20 @@ export default function VoucherFormModal({
                   error={undefined}
                 />
                 {selectedCustomer && selectedCustomer.email && (
-                  <ResponsiveText variant="xs" style={styles.emailNote} numberOfLines={1}>
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.emailNote}
+                    numberOfLines={1}
+                  >
                     Email will be sent to: {selectedCustomer.email}
                   </ResponsiveText>
                 )}
                 {selectedCustomer && !selectedCustomer.email && (
-                  <ResponsiveText variant="xs" style={styles.emailWarning} numberOfLines={1}>
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.emailWarning}
+                    numberOfLines={1}
+                  >
                     No email address for this customer. Email will not be sent.
                   </ResponsiveText>
                 )}
@@ -485,7 +553,11 @@ export default function VoucherFormModal({
                   {createMutation.isPending ? (
                     <ActivityIndicator color="white" />
                   ) : (
-                    <ResponsiveText variant="md" style={styles.submitButtonText} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="md"
+                      style={styles.submitButtonText}
+                      numberOfLines={1}
+                    >
                       Create Voucher
                     </ResponsiveText>
                   )}
@@ -494,7 +566,7 @@ export default function VoucherFormModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -675,4 +747,3 @@ const styles = StyleSheet.create({
     color: "#ec4899",
   },
 });
-

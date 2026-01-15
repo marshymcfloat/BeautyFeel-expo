@@ -1,20 +1,22 @@
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
+import type { Database } from "@/database.types";
 import {
   createDiscountAction,
   updateDiscountAction,
   type DiscountWithServices,
 } from "@/lib/actions/discountActions";
 import { getAllServicesAction } from "@/lib/actions/serviceActions";
-import type { Database } from "@/database.types";
-import { scaleDimension, percentageHeight } from "@/lib/utils/responsive";
+import { percentageHeight, scaleDimension } from "@/lib/utils/responsive";
 import { zodResolver } from "@hookform/resolvers/zod";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
-import { Calendar, Check, X, Tag } from "lucide-react-native";
+import { Calendar, Check, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -23,7 +25,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { z } from "zod";
 import { FormField } from "../form/FormField";
 import { queryClient } from "../Providers/TanstackProvider";
@@ -37,11 +38,18 @@ const discountSchema = z
     name: z.string().min(1, "Discount name is required"),
     description: z.string().optional(),
     discount_type: z.enum(["ABSOLUTE", "PERCENTAGE"]),
-    discount_value: z.number().min(0.01, "Discount value must be greater than 0"),
-    branch: z.enum(["NAILS", "SKIN", "LASHES", "MASSAGE"]).nullable().optional(),
+    discount_value: z
+      .number()
+      .min(0.01, "Discount value must be greater than 0"),
+    branch: z
+      .enum(["NAILS", "SKIN", "LASHES", "MASSAGE"])
+      .nullable()
+      .optional(),
     start_date: z.string().min(1, "Start date is required"),
     end_date: z.string().min(1, "End date is required"),
-    service_ids: z.array(z.number()).min(1, "At least one service must be selected"),
+    service_ids: z
+      .array(z.number())
+      .min(1, "At least one service must be selected"),
   })
   .refine(
     (data) => {
@@ -162,7 +170,9 @@ export default function DiscountFormModal({
       reset({
         name: existingDiscount.name,
         description: existingDiscount.description || "",
-        discount_type: existingDiscount.discount_type as "ABSOLUTE" | "PERCENTAGE",
+        discount_type: existingDiscount.discount_type as
+          | "ABSOLUTE"
+          | "PERCENTAGE",
         discount_value: Number(existingDiscount.discount_value),
         branch: existingDiscount.branch || null,
         start_date: existingDiscount.start_date,
@@ -255,10 +265,12 @@ export default function DiscountFormModal({
   };
 
   const handleSelectAll = () => {
-    const servicesToSelect = watchedBranch
-      ? filteredServices
-      : services;
-    setValue("service_ids", servicesToSelect.map((s) => s.id), { shouldValidate: true });
+    const servicesToSelect = watchedBranch ? filteredServices : services;
+    setValue(
+      "service_ids",
+      servicesToSelect.map((s) => s.id),
+      { shouldValidate: true }
+    );
   };
 
   const handleDeselectAll = () => {
@@ -302,7 +314,10 @@ export default function DiscountFormModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.modalContent}>
           <ScrollView
@@ -343,14 +358,19 @@ export default function DiscountFormModal({
 
               {/* Discount Type */}
               <View style={styles.section}>
-                <ResponsiveText variant="sm" style={styles.sectionLabel} numberOfLines={1}>
+                <ResponsiveText
+                  variant="sm"
+                  style={styles.sectionLabel}
+                  numberOfLines={1}
+                >
                   Discount Type
                 </ResponsiveText>
                 <View style={styles.radioGroup}>
                   <Pressable
                     style={[
                       styles.radioOption,
-                      watchedDiscountType === "PERCENTAGE" && styles.radioOptionActive,
+                      watchedDiscountType === "PERCENTAGE" &&
+                        styles.radioOptionActive,
                     ]}
                     onPress={() => setValue("discount_type", "PERCENTAGE")}
                   >
@@ -359,14 +379,19 @@ export default function DiscountFormModal({
                         <View style={styles.radioCircleInner} />
                       )}
                     </View>
-                    <ResponsiveText variant="sm" style={styles.radioLabel} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.radioLabel}
+                      numberOfLines={1}
+                    >
                       Percentage (%)
                     </ResponsiveText>
                   </Pressable>
                   <Pressable
                     style={[
                       styles.radioOption,
-                      watchedDiscountType === "ABSOLUTE" && styles.radioOptionActive,
+                      watchedDiscountType === "ABSOLUTE" &&
+                        styles.radioOptionActive,
                     ]}
                     onPress={() => setValue("discount_type", "ABSOLUTE")}
                   >
@@ -375,7 +400,11 @@ export default function DiscountFormModal({
                         <View style={styles.radioCircleInner} />
                       )}
                     </View>
-                    <ResponsiveText variant="sm" style={styles.radioLabel} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.radioLabel}
+                      numberOfLines={1}
+                    >
                       Absolute Amount (₱)
                     </ResponsiveText>
                   </Pressable>
@@ -386,9 +415,16 @@ export default function DiscountFormModal({
               <Controller
                 control={control}
                 name="discount_value"
-                render={({ field: { onChange, value }, fieldState: { error } }) => (
+                render={({
+                  field: { onChange, value },
+                  fieldState: { error },
+                }) => (
                   <View style={styles.fieldContainer}>
-                    <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.label}
+                      numberOfLines={1}
+                    >
                       Discount Value
                       {watchedDiscountType === "PERCENTAGE" ? " (%)" : " (₱)"}
                     </ResponsiveText>
@@ -408,7 +444,11 @@ export default function DiscountFormModal({
                       keyboardType="numeric"
                     />
                     {error && (
-                      <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={2}>
+                      <ResponsiveText
+                        variant="xs"
+                        style={styles.errorText}
+                        numberOfLines={2}
+                      >
                         {error.message}
                       </ResponsiveText>
                     )}
@@ -418,7 +458,11 @@ export default function DiscountFormModal({
 
               {/* Branch Selection (Optional) */}
               <View style={styles.section}>
-                <ResponsiveText variant="sm" style={styles.sectionLabel} numberOfLines={1}>
+                <ResponsiveText
+                  variant="sm"
+                  style={styles.sectionLabel}
+                  numberOfLines={1}
+                >
                   Branch Filter (Optional - Leave empty for all branches)
                 </ResponsiveText>
                 <View style={styles.branchButtons}>
@@ -429,24 +473,35 @@ export default function DiscountFormModal({
                     ]}
                     onPress={() => setValue("branch", null)}
                   >
-                    <ResponsiveText variant="xs" style={styles.branchButtonText} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="xs"
+                      style={styles.branchButtonText}
+                      numberOfLines={1}
+                    >
                       All Branches
                     </ResponsiveText>
                   </Pressable>
-                  {(["NAILS", "SKIN", "LASHES", "MASSAGE"] as Branch[]).map((branch) => (
-                    <Pressable
-                      key={branch}
-                      style={[
-                        styles.branchButton,
-                        watch("branch") === branch && styles.branchButtonActive,
-                      ]}
-                      onPress={() => setValue("branch", branch)}
-                    >
-                      <ResponsiveText variant="xs" style={styles.branchButtonText} numberOfLines={1}>
-                        {branch}
-                      </ResponsiveText>
-                    </Pressable>
-                  ))}
+                  {(["NAILS", "SKIN", "LASHES", "MASSAGE"] as Branch[]).map(
+                    (branch) => (
+                      <Pressable
+                        key={branch}
+                        style={[
+                          styles.branchButton,
+                          watch("branch") === branch &&
+                            styles.branchButtonActive,
+                        ]}
+                        onPress={() => setValue("branch", branch)}
+                      >
+                        <ResponsiveText
+                          variant="xs"
+                          style={styles.branchButtonText}
+                          numberOfLines={1}
+                        >
+                          {branch}
+                        </ResponsiveText>
+                      </Pressable>
+                    )
+                  )}
                 </View>
               </View>
 
@@ -454,7 +509,11 @@ export default function DiscountFormModal({
               <View style={styles.dateSection}>
                 <View style={styles.dateRow}>
                   <View style={styles.dateField}>
-                    <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.label}
+                      numberOfLines={1}
+                    >
                       Start Date & Time
                     </ResponsiveText>
                     <Pressable
@@ -462,7 +521,11 @@ export default function DiscountFormModal({
                       onPress={() => setShowStartDatePicker(true)}
                     >
                       <Calendar size={18} color="#6b7280" />
-                      <ResponsiveText variant="sm" style={styles.dateText} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.dateText}
+                        numberOfLines={1}
+                      >
                         {new Date(watch("start_date")).toLocaleString()}
                       </ResponsiveText>
                     </Pressable>
@@ -477,7 +540,11 @@ export default function DiscountFormModal({
                     )}
                   </View>
                   <View style={styles.dateField}>
-                    <ResponsiveText variant="sm" style={styles.label} numberOfLines={1}>
+                    <ResponsiveText
+                      variant="sm"
+                      style={styles.label}
+                      numberOfLines={1}
+                    >
                       End Date & Time
                     </ResponsiveText>
                     <Pressable
@@ -485,7 +552,11 @@ export default function DiscountFormModal({
                       onPress={() => setShowEndDatePicker(true)}
                     >
                       <Calendar size={18} color="#6b7280" />
-                      <ResponsiveText variant="sm" style={styles.dateText} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="sm"
+                        style={styles.dateText}
+                        numberOfLines={1}
+                      >
                         {new Date(watch("end_date")).toLocaleString()}
                       </ResponsiveText>
                     </Pressable>
@@ -501,12 +572,20 @@ export default function DiscountFormModal({
                   </View>
                 </View>
                 {errors.start_date && (
-                  <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={2}>
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.errorText}
+                    numberOfLines={2}
+                  >
                     {errors.start_date.message}
                   </ResponsiveText>
                 )}
                 {errors.end_date && (
-                  <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={2}>
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.errorText}
+                    numberOfLines={2}
+                  >
                     {errors.end_date.message}
                   </ResponsiveText>
                 )}
@@ -515,29 +594,43 @@ export default function DiscountFormModal({
               {/* Service Selection */}
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <ResponsiveText variant="sm" style={styles.sectionLabel} numberOfLines={1}>
+                  <ResponsiveText
+                    variant="sm"
+                    style={styles.sectionLabel}
+                    numberOfLines={1}
+                  >
                     Select Services ({watchedServiceIds?.length || 0} selected)
                   </ResponsiveText>
                   <View style={styles.selectionModeButtons}>
                     <Pressable
                       style={[
                         styles.modeButton,
-                        serviceSelectionMode === "individual" && styles.modeButtonActive,
+                        serviceSelectionMode === "individual" &&
+                          styles.modeButtonActive,
                       ]}
                       onPress={() => setServiceSelectionMode("individual")}
                     >
-                      <ResponsiveText variant="xs" style={styles.modeButtonText} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="xs"
+                        style={styles.modeButtonText}
+                        numberOfLines={1}
+                      >
                         Individual
                       </ResponsiveText>
                     </Pressable>
                     <Pressable
                       style={[
                         styles.modeButton,
-                        serviceSelectionMode === "branch" && styles.modeButtonActive,
+                        serviceSelectionMode === "branch" &&
+                          styles.modeButtonActive,
                       ]}
                       onPress={() => setServiceSelectionMode("branch")}
                     >
-                      <ResponsiveText variant="xs" style={styles.modeButtonText} numberOfLines={1}>
+                      <ResponsiveText
+                        variant="xs"
+                        style={styles.modeButtonText}
+                        numberOfLines={1}
+                      >
                         By Branch
                       </ResponsiveText>
                     </Pressable>
@@ -547,13 +640,27 @@ export default function DiscountFormModal({
                 {serviceSelectionMode === "individual" && (
                   <View style={styles.serviceSelectionContainer}>
                     <View style={styles.bulkActions}>
-                      <Pressable style={styles.bulkButton} onPress={handleSelectAll}>
-                        <ResponsiveText variant="xs" style={styles.bulkButtonText} numberOfLines={1}>
+                      <Pressable
+                        style={styles.bulkButton}
+                        onPress={handleSelectAll}
+                      >
+                        <ResponsiveText
+                          variant="xs"
+                          style={styles.bulkButtonText}
+                          numberOfLines={1}
+                        >
                           Select All
                         </ResponsiveText>
                       </Pressable>
-                      <Pressable style={styles.bulkButton} onPress={handleDeselectAll}>
-                        <ResponsiveText variant="xs" style={styles.bulkButtonText} numberOfLines={1}>
+                      <Pressable
+                        style={styles.bulkButton}
+                        onPress={handleDeselectAll}
+                      >
+                        <ResponsiveText
+                          variant="xs"
+                          style={styles.bulkButtonText}
+                          numberOfLines={1}
+                        >
                           Deselect All
                         </ResponsiveText>
                       </Pressable>
@@ -564,7 +671,9 @@ export default function DiscountFormModal({
                       showsVerticalScrollIndicator={false}
                     >
                       {filteredServices.map((service) => {
-                        const isSelected = watchedServiceIds?.includes(service.id);
+                        const isSelected = watchedServiceIds?.includes(
+                          service.id
+                        );
                         return (
                           <Pressable
                             key={service.id}
@@ -575,13 +684,23 @@ export default function DiscountFormModal({
                             onPress={() => handleServiceToggle(service.id)}
                           >
                             <View style={styles.serviceCheckbox}>
-                              {isSelected && <Check size={16} color="#ec4899" />}
+                              {isSelected && (
+                                <Check size={16} color="#ec4899" />
+                              )}
                             </View>
                             <View style={styles.serviceInfo}>
-                              <ResponsiveText variant="sm" style={styles.serviceName} numberOfLines={1}>
+                              <ResponsiveText
+                                variant="sm"
+                                style={styles.serviceName}
+                                numberOfLines={1}
+                              >
                                 {service.title}
                               </ResponsiveText>
-                              <ResponsiveText variant="xs" style={styles.serviceDetails} numberOfLines={1}>
+                              <ResponsiveText
+                                variant="xs"
+                                style={styles.serviceDetails}
+                                numberOfLines={1}
+                              >
                                 {service.branch} • {service.price}₱
                               </ResponsiveText>
                             </View>
@@ -598,87 +717,121 @@ export default function DiscountFormModal({
                     nestedScrollEnabled
                     showsVerticalScrollIndicator={false}
                   >
-                    {(["NAILS", "SKIN", "LASHES", "MASSAGE"] as Branch[]).map((branch) => {
-                      const branchServices = servicesByBranch[branch];
-                      const allSelected =
-                        branchServices.length > 0 &&
-                        branchServices.every((s) =>
+                    {(["NAILS", "SKIN", "LASHES", "MASSAGE"] as Branch[]).map(
+                      (branch) => {
+                        const branchServices = servicesByBranch[branch];
+                        const allSelected =
+                          branchServices.length > 0 &&
+                          branchServices.every((s) =>
+                            watchedServiceIds?.includes(s.id)
+                          );
+                        const someSelected = branchServices.some((s) =>
                           watchedServiceIds?.includes(s.id)
                         );
-                      const someSelected = branchServices.some((s) =>
-                        watchedServiceIds?.includes(s.id)
-                      );
 
-                      return (
-                        <View key={branch} style={styles.branchGroup}>
-                          <Pressable
-                            style={styles.branchGroupHeader}
-                            onPress={() => {
-                              if (allSelected) {
-                                // Deselect all in branch
-                                const newIds = (watchedServiceIds || []).filter(
-                                  (id) => !branchServices.some((s) => s.id === id)
+                        return (
+                          <View key={branch} style={styles.branchGroup}>
+                            <Pressable
+                              style={styles.branchGroupHeader}
+                              onPress={() => {
+                                if (allSelected) {
+                                  // Deselect all in branch
+                                  const newIds = (
+                                    watchedServiceIds || []
+                                  ).filter(
+                                    (id) =>
+                                      !branchServices.some((s) => s.id === id)
+                                  );
+                                  setValue("service_ids", newIds, {
+                                    shouldValidate: true,
+                                  });
+                                } else {
+                                  // Select all in branch
+                                  const branchIds = branchServices.map(
+                                    (s) => s.id
+                                  );
+                                  const newIds = [
+                                    ...new Set([
+                                      ...(watchedServiceIds || []),
+                                      ...branchIds,
+                                    ]),
+                                  ];
+                                  setValue("service_ids", newIds, {
+                                    shouldValidate: true,
+                                  });
+                                }
+                              }}
+                            >
+                              <View style={styles.branchCheckbox}>
+                                {allSelected && (
+                                  <Check size={16} color="#ec4899" />
+                                )}
+                                {someSelected && !allSelected && (
+                                  <View style={styles.branchCheckboxPartial} />
+                                )}
+                              </View>
+                              <ResponsiveText
+                                variant="sm"
+                                style={styles.branchGroupTitle}
+                                numberOfLines={1}
+                              >
+                                {branch} ({branchServices.length} services)
+                              </ResponsiveText>
+                            </Pressable>
+                            <View style={styles.branchServicesList}>
+                              {branchServices.map((service) => {
+                                const isSelected = watchedServiceIds?.includes(
+                                  service.id
                                 );
-                                setValue("service_ids", newIds, {
-                                  shouldValidate: true,
-                                });
-                              } else {
-                                // Select all in branch
-                                const branchIds = branchServices.map((s) => s.id);
-                                const newIds = [
-                                  ...new Set([...(watchedServiceIds || []), ...branchIds]),
-                                ];
-                                setValue("service_ids", newIds, {
-                                  shouldValidate: true,
-                                });
-                              }
-                            }}
-                          >
-                            <View style={styles.branchCheckbox}>
-                              {allSelected && <Check size={16} color="#ec4899" />}
-                              {someSelected && !allSelected && (
-                                <View style={styles.branchCheckboxPartial} />
-                              )}
+                                return (
+                                  <Pressable
+                                    key={service.id}
+                                    style={[
+                                      styles.serviceItem,
+                                      isSelected && styles.serviceItemSelected,
+                                    ]}
+                                    onPress={() =>
+                                      handleServiceToggle(service.id)
+                                    }
+                                  >
+                                    <View style={styles.serviceCheckbox}>
+                                      {isSelected && (
+                                        <Check size={16} color="#ec4899" />
+                                      )}
+                                    </View>
+                                    <View style={styles.serviceInfo}>
+                                      <ResponsiveText
+                                        variant="sm"
+                                        style={styles.serviceName}
+                                        numberOfLines={1}
+                                      >
+                                        {service.title}
+                                      </ResponsiveText>
+                                      <ResponsiveText
+                                        variant="xs"
+                                        style={styles.serviceDetails}
+                                        numberOfLines={1}
+                                      >
+                                        {service.price}₱
+                                      </ResponsiveText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              })}
                             </View>
-                            <ResponsiveText variant="sm" style={styles.branchGroupTitle} numberOfLines={1}>
-                              {branch} ({branchServices.length} services)
-                            </ResponsiveText>
-                          </Pressable>
-                          <View style={styles.branchServicesList}>
-                            {branchServices.map((service) => {
-                              const isSelected = watchedServiceIds?.includes(service.id);
-                              return (
-                                <Pressable
-                                  key={service.id}
-                                  style={[
-                                    styles.serviceItem,
-                                    isSelected && styles.serviceItemSelected,
-                                  ]}
-                                  onPress={() => handleServiceToggle(service.id)}
-                                >
-                                  <View style={styles.serviceCheckbox}>
-                                    {isSelected && <Check size={16} color="#ec4899" />}
-                                  </View>
-                                  <View style={styles.serviceInfo}>
-                                    <ResponsiveText variant="sm" style={styles.serviceName} numberOfLines={1}>
-                                      {service.title}
-                                    </ResponsiveText>
-                                    <ResponsiveText variant="xs" style={styles.serviceDetails} numberOfLines={1}>
-                                      {service.price}₱
-                                    </ResponsiveText>
-                                  </View>
-                                </Pressable>
-                              );
-                            })}
                           </View>
-                        </View>
-                      );
-                    })}
+                        );
+                      }
+                    )}
                   </ScrollView>
                 )}
 
                 {errors.service_ids && (
-                  <ResponsiveText variant="xs" style={styles.errorText} numberOfLines={2}>
+                  <ResponsiveText
+                    variant="xs"
+                    style={styles.errorText}
+                    numberOfLines={2}
+                  >
                     {errors.service_ids.message}
                   </ResponsiveText>
                 )}
@@ -720,7 +873,7 @@ export default function DiscountFormModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1027,4 +1180,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

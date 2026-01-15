@@ -1,4 +1,9 @@
-import type { SalesData } from "@/lib/actions/salesActions";
+import type {
+  Branch,
+  SalesData,
+  SalesDataByBranch,
+} from "@/lib/actions/salesActions";
+import { getBranchesForOwner } from "@/lib/actions/salesActions";
 import { formatCurrencyCompact } from "@/lib/utils/currency";
 import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import React, { useMemo, useState } from "react";
@@ -21,17 +26,32 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 
-const CHART_HEIGHT = scaleDimension(220);
-const PADDING_TOP = scaleDimension(40);
-const PADDING_BOTTOM = scaleDimension(30);
-const PADDING_LEFT = scaleDimension(16);
-const PADDING_RIGHT = scaleDimension(16);
+// Color scheme for branches
+const BRANCH_COLORS: Record<Branch, string> = {
+  NAILS: "#ec4899", // Pink
+  SKIN: "#8b5cf6", // Purple
+  LASHES: "#10b981", // Green
+  MASSAGE: "#f59e0b", // Amber/Orange
+};
+
+const BRANCH_LABELS: Record<Branch, string> = {
+  NAILS: "Nails",
+  SKIN: "Skin",
+  LASHES: "Lashes",
+  MASSAGE: "Massage",
+};
+
+const CHART_HEIGHT = scaleDimension(240);
+const PADDING_TOP = scaleDimension(50);
+const PADDING_BOTTOM = scaleDimension(40);
+const PADDING_LEFT = scaleDimension(0); // Minimized for full-width look
+const PADDING_RIGHT = scaleDimension(0);
 
 // Helper for smooth curve
 const bezierCommand = (point: any, i: number, a: any) => {
   const { x: xEnd, y: yEnd } = point;
   const { x: xStart, y: yStart } = a[i - 1] || point;
-  const smoothing = 0.2;
+  const smoothing = 0.15; // Adjusted for a tighter curve like the screenshot
   const cpsX = xStart + (xEnd - xStart) * smoothing;
   const cpsY = yStart;
   const cpeX = xEnd - (xEnd - xStart) * smoothing;
@@ -41,10 +61,17 @@ const bezierCommand = (point: any, i: number, a: any) => {
 
 interface SalesChartProps {
   data: SalesData[];
+  dataByBranch?: SalesDataByBranch[];
   timeSpan: "all" | "month" | "week" | "day";
+  ownerBranch?: Branch | null;
 }
 
-export default function SalesChart({ data, timeSpan }: SalesChartProps) {
+export default function SalesChart({
+  data,
+  dataByBranch,
+  timeSpan,
+  ownerBranch,
+}: SalesChartProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -52,33 +79,139 @@ export default function SalesChart({ data, timeSpan }: SalesChartProps) {
     setContainerWidth(event.nativeEvent.layout.width);
   };
 
+  // Get branches that have sales data (at least one data point with sales > 0)
+  // Filter to only show branches the owner has access to
+  const activeBranches = useMemo(() => {
+    if (!dataByBranch || dataByBranch.length === 0) return [];
+
+    // Get accessible branches for this owner
+    const accessibleBranches =
+      ownerBranch !== undefined && ownerBranch !== null
+        ? getBranchesForOwner(ownerBranch)
+        : ["NAILS", "SKIN", "LASHES", "MASSAGE"];
+
+    const branches = new Set<Branch>();
+    dataByBranch.forEach((item) => {
+      Object.entries(item.branches).forEach(([branch, branchData]) => {
+        // Only include branches that:
+        // 1. The owner has access to
+        // 2. Have sales > 0 in at least one data point
+        if (
+          accessibleBranches.includes(branch as Branch) &&
+          branchData &&
+          branchData.sales > 0
+        ) {
+          branches.add(branch as Branch);
+        }
+      });
+    });
+    return Array.from(branches);
+  }, [dataByBranch, ownerBranch]);
+
   const chartCalculations = useMemo(() => {
+    // Always prefer dataByBranch if available
+    const chartData =
+      dataByBranch && dataByBranch.length > 0 ? dataByBranch : null;
+
+    // If we have branch data, use multi-branch chart
+    if (chartData && chartData.length > 0 && containerWidth > 0) {
+      const internalPaddingX = scaleDimension(16);
+      const chartWidth = containerWidth - internalPaddingX * 2;
+      const chartHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+
+      // Calculate max sales across all branches
+      let maxSales = 0;
+      chartData.forEach((item) => {
+        Object.values(item.branches).forEach((branchData) => {
+          maxSales = Math.max(maxSales, branchData.sales);
+        });
+      });
+      maxSales = Math.max(maxSales, 1);
+      const minSales = 0;
+      maxSales = maxSales * 1.2; // Add 20% breathing room at top
+
+      // Generate points for each branch
+      const branchLines: Array<{
+        branch: Branch;
+        color: string;
+        points: Array<{ x: number; y: number; sales: number }>;
+      }> = [];
+
+      activeBranches.forEach((branch) => {
+        const points = chartData.map((item, index) => {
+          const divisor = chartData.length > 1 ? chartData.length - 1 : 1;
+          const x = (index / divisor) * chartWidth + internalPaddingX;
+          const sales = item.branches[branch].sales;
+          const salesRange = maxSales - minSales || 1;
+          const y =
+            CHART_HEIGHT -
+            PADDING_BOTTOM -
+            ((sales - minSales) / salesRange) * chartHeight;
+          return { x, y, sales };
+        });
+        branchLines.push({ branch, color: BRANCH_COLORS[branch], points });
+      });
+
+      // Generate path strings for each branch
+      const lines = branchLines.map(({ branch, color, points }) => {
+        const d = points.reduce(
+          (acc, point, i, a) =>
+            i === 0
+              ? `M ${point.x},${point.y}`
+              : `${acc} ${bezierCommand(point, i, a)}`,
+          ""
+        );
+
+        // Area paths for gradients (optional, can remove if too cluttered)
+        const dArea = `${d} L ${points[points.length - 1].x},${
+          CHART_HEIGHT - PADDING_BOTTOM
+        } L ${points[0].x},${CHART_HEIGHT - PADDING_BOTTOM} Z`;
+
+        return { branch, color, d, dArea, points };
+      });
+
+      // Combined points for interactivity (use first date from chartData)
+      const points = chartData.map((item, index) => {
+        const divisor = chartData.length > 1 ? chartData.length - 1 : 1;
+        const x = (index / divisor) * chartWidth + internalPaddingX;
+        const totalSales = Object.values(item.branches).reduce(
+          (sum, b) => sum + b.sales,
+          0
+        );
+        return {
+          x,
+          y: 0, // Will be calculated per branch
+          sales: totalSales,
+          date: item.date,
+          branches: item.branches,
+        };
+      });
+
+      return { points, chartHeight, lines, maxSales };
+    }
+
+    // Fallback to old single line chart only if no branch data
     if (!data || data.length === 0 || containerWidth === 0) return null;
 
-    // Ensure we draw strictly inside the container
-    const chartWidth = containerWidth - PADDING_LEFT - PADDING_RIGHT;
+    const internalPaddingX = scaleDimension(16);
+    const chartWidth = containerWidth - internalPaddingX * 2;
     const chartHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
-    // Find max sales value for scaling
     let maxSales = Math.max(...data.map((d) => d.sales), 1);
-    const minSales = 0; // Always start from 0 for better context
+    const minSales = 0;
+    maxSales = maxSales * 1.2;
 
-    // Add 10% buffer to top so the line doesn't hit the ceiling
-    maxSales = maxSales * 1.1;
-
-    // Calculate points
     const points = data.map((item, index) => {
       const divisor = data.length > 1 ? data.length - 1 : 1;
-      const x = (index / divisor) * chartWidth + PADDING_LEFT;
+      const x = (index / divisor) * chartWidth + internalPaddingX;
       const salesRange = maxSales - minSales || 1;
       const y =
         CHART_HEIGHT -
         PADDING_BOTTOM -
         ((item.sales - minSales) / salesRange) * chartHeight;
-      return { x, y, sales: item.sales, date: item.date };
+      return { x, y, sales: item.sales, date: item.date, branches: {} };
     });
 
-    // Generate Path for smooth line
     const d = points.reduce(
       (acc, point, i, a) =>
         i === 0
@@ -87,35 +220,29 @@ export default function SalesChart({ data, timeSpan }: SalesChartProps) {
       ""
     );
 
-    // Generate Path for Gradient Area
     const dArea = `${d} L ${points[points.length - 1].x},${
       CHART_HEIGHT - PADDING_BOTTOM
     } L ${points[0].x},${CHART_HEIGHT - PADDING_BOTTOM} Z`;
 
-    return { points, maxSales, minSales, chartHeight, d, dArea };
-  }, [data, containerWidth]);
-
-  if (!data || data.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No sales data available</Text>
-        <Text style={styles.emptySubtext}>
-          Sales data will appear here once you have completed or paid bookings
-        </Text>
-      </View>
-    );
-  }
+    return {
+      points: points.map((p) => ({
+        ...p,
+        branches: {} as Record<Branch, { sales: number; bookings: number }>,
+      })),
+      chartHeight,
+      lines: [
+        { d, dArea, branch: null as Branch | null, color: "#ec4899", points },
+      ],
+      maxSales: maxSales,
+    };
+  }, [data, dataByBranch, containerWidth, activeBranches]);
 
   // Format date labels
   const formatDateLabel = (dateStr: string) => {
     if (timeSpan === "day")
       return dateStr.split(" ")[1]?.substring(0, 5) || dateStr;
-    if (timeSpan === "week" || timeSpan === "month") {
-      const parts = dateStr.split("-");
-      return `${parts[1]}/${parts[2]}`;
-    }
     const parts = dateStr.split("-");
-    if (parts.length >= 2) return `${parts[1]}/${parts[0]?.substring(2)}`;
+    if (parts.length >= 2) return `${parts[1]}/${parts[2]}`;
     return dateStr;
   };
 
@@ -123,205 +250,270 @@ export default function SalesChart({ data, timeSpan }: SalesChartProps) {
     setSelectedIndex(index === selectedIndex ? null : index);
   };
 
-  // If chart isn't ready (width not measured), render a placeholder
+  if (!data || data.length === 0) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No sales data available</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Placeholder while measuring
   if (!chartCalculations) {
     return (
-      <View style={styles.container} onLayout={onLayout}>
-        {/* Invisible spacer to reserve height */}
+      <View style={styles.card} onLayout={onLayout}>
         <View style={{ height: CHART_HEIGHT }} />
       </View>
     );
   }
 
-  const { points, chartHeight, d, dArea } = chartCalculations;
+  const { points, chartHeight, lines } = chartCalculations;
   const activePointIndex =
     selectedIndex !== null ? selectedIndex : points.length - 1;
   const activePoint = points[activePointIndex];
 
+  // Calculate total sales for active point
+  const activeTotalSales =
+    activePoint?.branches && Object.keys(activePoint.branches).length > 0
+      ? Object.values(activePoint.branches).reduce(
+          (sum: number, b: any) => sum + (b.sales || 0),
+          0
+        )
+      : activePoint?.sales || 0;
+
   return (
-    <View style={styles.container} onLayout={onLayout}>
-      {/* Header Info */}
+    <View style={styles.card} onLayout={onLayout}>
       <View style={styles.chartHeader}>
-        <View>
-          <Text style={styles.activeLabel}>
-            {activePoint ? formatDateLabel(activePoint.date) : "Total Sales"}
-          </Text>
-          <Text style={styles.activeValue}>
-            {activePoint ? formatCurrencyCompact(activePoint.sales) : "₱0"}
-          </Text>
-        </View>
+        <Text style={styles.activeLabel}>
+          {activePoint ? formatDateLabel(activePoint.date) : "Total"}
+        </Text>
+        <Text style={styles.activeValue}>
+          {formatCurrencyCompact(activeTotalSales)}
+        </Text>
       </View>
 
       <View style={styles.chartWrapper}>
         <Svg width={containerWidth} height={CHART_HEIGHT}>
           <Defs>
-            <LinearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#ec4899" stopOpacity="0.2" />
+            {/* Fallback gradient for single line (when no branch data) */}
+            <LinearGradient id="gradient-fallback" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#ec4899" stopOpacity="0.15" />
               <Stop offset="1" stopColor="#ec4899" stopOpacity="0" />
             </LinearGradient>
+            {/* Gradients for each branch */}
+            {lines
+              .filter((line) => line.branch !== null)
+              .map((line) => (
+                <LinearGradient
+                  key={`gradient-${line.branch}`}
+                  id={`gradient-${line.branch}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <Stop offset="0" stopColor={line.color} stopOpacity="0.15" />
+                  <Stop offset="1" stopColor={line.color} stopOpacity="0" />
+                </LinearGradient>
+              ))}
           </Defs>
 
-          {/* Grid Lines (Horizontal) */}
-          {[0, 0.5, 1].map((t) => {
+          {/* Dotted Horizontal Grid Lines */}
+          {[0, 0.33, 0.66, 1].map((t) => {
             const y = CHART_HEIGHT - PADDING_BOTTOM - t * chartHeight;
             return (
               <Line
                 key={t}
-                x1={PADDING_LEFT}
+                x1={16}
                 y1={y}
-                x2={containerWidth - PADDING_RIGHT}
+                x2={containerWidth - 16}
                 y2={y}
                 stroke="#f3f4f6"
                 strokeWidth="1"
-                strokeDasharray="4,4"
+                strokeDasharray="6,6"
               />
             );
           })}
 
-          {/* X-axis Labels */}
-          {points.map((point, index) => {
-            // Show fewer labels to prevent overlap
-            const step = Math.max(1, Math.ceil(points.length / 5));
-            if (index % step !== 0 && index !== points.length - 1) return null;
+          {/* Lines for each branch (no areas to avoid overlap) */}
+          {lines.map((line, lineIndex) => (
+            <G key={line.branch || `line-${lineIndex}`}>
+              {/* Line */}
+              {line.points.length > 1 && (
+                <Path
+                  d={line.d}
+                  fill="none"
+                  stroke={line.color}
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              )}
+            </G>
+          ))}
 
-            return (
-              <SvgText
-                key={index}
-                x={point.x}
-                y={CHART_HEIGHT - 10}
-                fontSize={scaleFont(10)}
-                fill="#9ca3af"
-                textAnchor="middle"
-              >
-                {formatDateLabel(point.date)}
-              </SvgText>
-            );
-          })}
-
-          {/* Area Fill */}
-          {points.length > 1 && <Path d={dArea} fill="url(#gradient)" />}
-
-          {/* Line Path */}
-          {points.length > 1 && (
-            <Path d={d} fill="none" stroke="#ec4899" strokeWidth="3" />
-          )}
-
-          {/* Interactive Overlay & Dots */}
+          {/* Interactive Elements */}
           {points.map((point, index) => (
             <G key={index} onPress={() => handleTouch(index)}>
-              {/* Invisible large rect for easier tapping */}
               <Rect
-                x={point.x - 15}
+                x={point.x - 20}
                 y={0}
-                width={30}
+                width={40}
                 height={CHART_HEIGHT}
                 fill="transparent"
-                onPress={() => handleTouch(index)}
               />
-
-              {/* Active Point Indicator */}
               {activePointIndex === index && (
                 <G>
-                  {/* Vertical Indicator Line */}
                   <Line
                     x1={point.x}
                     y1={PADDING_TOP}
                     x2={point.x}
                     y2={CHART_HEIGHT - PADDING_BOTTOM}
-                    stroke="#ec4899"
-                    strokeWidth="1"
+                    stroke="#9ca3af"
+                    strokeWidth="1.5"
                     strokeDasharray="4,4"
-                    opacity={0.5}
+                    opacity={0.6}
                   />
-                  {/* Outer Glow Circle */}
-                  <Circle
-                    cx={point.x}
-                    cy={point.y}
-                    r="8"
-                    fill="#ec4899"
-                    opacity={0.2}
-                  />
-                  {/* Inner Solid Circle */}
-                  <Circle
-                    cx={point.x}
-                    cy={point.y}
-                    r="4"
-                    fill="#ec4899"
-                    stroke="white"
-                    strokeWidth="2"
-                  />
+                  {/* Show circles for each branch at this point */}
+                  {lines.map((line, lineIdx) => {
+                    const branchPoint = line.points[index];
+                    if (!branchPoint || branchPoint.sales === 0) return null;
+                    return (
+                      <Circle
+                        key={line.branch || `circle-${lineIdx}`}
+                        cx={branchPoint.x}
+                        cy={branchPoint.y}
+                        r="6"
+                        fill={line.color}
+                        stroke="white"
+                        strokeWidth="2.5"
+                      />
+                    );
+                  })}
                 </G>
               )}
             </G>
           ))}
+
+          {/* X Axis Labels */}
+          {points.map((point, index) => {
+            // Show start and end labels, and maybe one in middle
+            const shouldShow =
+              index === 0 ||
+              index === points.length - 1 ||
+              index === Math.floor(points.length / 2);
+            if (!shouldShow) return null;
+
+            return (
+              <SvgText
+                key={index}
+                x={point.x}
+                y={CHART_HEIGHT - 12}
+                fontSize={scaleFont(11)}
+                fill="#9ca3af"
+                textAnchor={
+                  index === 0
+                    ? "start"
+                    : index === points.length - 1
+                    ? "end"
+                    : "middle"
+                }
+                fontWeight="500"
+              >
+                {formatDateLabel(point.date)}
+              </SvgText>
+            );
+          })}
         </Svg>
       </View>
+
+      {/* Legend */}
+      {activeBranches.length > 0 && (
+        <View style={styles.legend}>
+          {activeBranches.map((branch) => (
+            <View key={branch} style={styles.legendItem}>
+              <View
+                style={[
+                  styles.legendColor,
+                  { backgroundColor: BRANCH_COLORS[branch] },
+                ]}
+              />
+              <Text style={styles.legendLabel}>{BRANCH_LABELS[branch]}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     backgroundColor: "white",
     borderRadius: scaleDimension(24),
-    padding: scaleDimension(16),
-    marginHorizontal: scaleDimension(24),
-    marginBottom: scaleDimension(24),
-    // Ensure content stays inside
-    overflow: "hidden",
+    padding: scaleDimension(20),
+    width: "100%", // Ensures it fills parent
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
+        shadowColor: "#ec4899", // Slight pink shadow for premium feel
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
       },
       android: {
         elevation: 3,
       },
     }),
   },
-  chartWrapper: {
-    // This wrapper ensures the SVG doesn't bleed out if calculations are off
-    overflow: "hidden",
-  },
   chartHeader: {
     marginBottom: scaleDimension(8),
-    paddingLeft: scaleDimension(8),
   },
   activeLabel: {
     fontSize: scaleFont(12),
     color: "#6b7280",
     fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: scaleDimension(2),
+    marginBottom: scaleDimension(4),
   },
   activeValue: {
-    fontSize: scaleFont(24),
+    fontSize: scaleFont(26),
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.5,
   },
+  chartWrapper: {
+    overflow: "hidden",
+    marginLeft: scaleDimension(-16), // Negative margin to let SVG hit the edges visually if needed
+    marginRight: scaleDimension(-16),
+  },
   emptyContainer: {
-    backgroundColor: "white",
-    borderRadius: scaleDimension(16),
-    padding: scaleDimension(40),
-    marginHorizontal: scaleDimension(24),
-    marginBottom: scaleDimension(24),
+    height: scaleDimension(200),
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#f3f4f6",
   },
   emptyText: {
-    color: "#374151",
-    fontSize: scaleFont(14),
-    fontWeight: "600",
-    marginBottom: scaleDimension(8),
-  },
-  emptySubtext: {
     color: "#9ca3af",
+    fontSize: scaleFont(14),
+  },
+  legend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: scaleDimension(16),
+    gap: scaleDimension(12),
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(6),
+  },
+  legendColor: {
+    width: scaleDimension(12),
+    height: scaleDimension(12),
+    borderRadius: scaleDimension(2),
+  },
+  legendLabel: {
     fontSize: scaleFont(12),
-    textAlign: "center",
+    color: "#6b7280",
+    fontWeight: "600",
   },
 });

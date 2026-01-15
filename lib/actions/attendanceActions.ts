@@ -1,5 +1,8 @@
+import type { Database } from "../../database.types";
 import { supabase } from "../utils/supabase";
 import { getPhilippineDate } from "../utils/dateTime";
+
+type Branch = Database["public"]["Enums"]["branch"];
 
 export interface AttendanceRecord {
   id: string;
@@ -23,15 +26,35 @@ export interface EmployeeWithAttendance {
   attendance?: AttendanceRecord | null;
 }
 
+// Helper to determine branches to include based on owner's branch
+function getBranchesForOwner(ownerBranch: Branch | null): Branch[] {
+  if (ownerBranch === "SKIN") {
+    return ["NAILS", "SKIN", "MASSAGE"]; // All except LASHES
+  }
+  if (ownerBranch === "LASHES") {
+    return ["LASHES"]; // Only LASHES
+  }
+  return ["NAILS", "SKIN", "LASHES", "MASSAGE"]; // All branches for other owners/admins
+}
+
 /**
  * Fetch all employees for owner to manage attendance
  */
-export async function getAllEmployeesForAttendance() {
+export async function getAllEmployeesForAttendance(ownerBranch: Branch | null = null) {
   try {
-    const { data: employees, error: employeesError } = await supabase
+    const branchesToInclude = getBranchesForOwner(ownerBranch);
+    
+    let query = supabase
       .from("employee")
       .select("*")
       .order("created_at", { ascending: true });
+    
+    // Filter by branch if ownerBranch is provided
+    if (ownerBranch) {
+      query = query.in("branch", branchesToInclude);
+    }
+    
+    const { data: employees, error: employeesError } = await query;
 
     if (employeesError) {
       console.error("Error fetching employees:", employeesError);

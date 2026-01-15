@@ -1,11 +1,13 @@
 import { Tables } from "@/database.types";
+import { getUpcomingAppointmentSessions } from "@/lib/actions/appointmentSessionActions";
 import { searchCustomers } from "@/lib/actions/customerActions";
 import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
 import { useQuery } from "@tanstack/react-query";
-import { User } from "lucide-react-native";
+import { Calendar, User } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,10 +19,10 @@ import {
 type Customer = Tables<"customer">;
 
 interface CustomerSearchInputProps {
-  value: number | null; // customerId (null or 0 means new customer)
-  customerName?: string; // Customer name for new customers
+  value: number | null;
+  customerName?: string;
   onSelect: (customerId: number, customer: Customer) => void;
-  onNameChange?: (name: string) => void; // Callback when user types a new customer name
+  onNameChange?: (name: string) => void;
   onClear?: () => void;
   error?: string;
 }
@@ -39,7 +41,6 @@ export default function CustomerSearchInput({
   );
   const [showResults, setShowResults] = useState(false);
 
-  // Search customers when search term changes
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ["customerSearch", searchTerm],
     queryFn: () => searchCustomers(searchTerm),
@@ -49,7 +50,20 @@ export default function CustomerSearchInput({
   const customers: Customer[] =
     searchResults?.success && searchResults.data ? searchResults.data : [];
 
-  // Reset when value changes externally
+  const { data: upcomingSessions, refetch: refetchUpcomingSessions } = useQuery(
+    {
+      queryKey: ["upcomingAppointmentSessions", value],
+      queryFn: () => getUpcomingAppointmentSessions(value || 0),
+      enabled: !!value && value > 0 && !!selectedCustomer,
+    }
+  );
+
+  useEffect(() => {
+    if (value && value > 0 && selectedCustomer) {
+      refetchUpcomingSessions();
+    }
+  }, [value, selectedCustomer, refetchUpcomingSessions]);
+
   useEffect(() => {
     if (value === null || value === 0) {
       setSelectedCustomer(null);
@@ -59,7 +73,6 @@ export default function CustomerSearchInput({
     }
   }, [value, customerName]);
 
-  // Sync searchTerm with customerName if provided
   useEffect(() => {
     if (customerName && !selectedCustomer) {
       setSearchTerm(customerName);
@@ -92,6 +105,11 @@ export default function CustomerSearchInput({
   };
 
   if (selectedCustomer) {
+    const sessions =
+      upcomingSessions?.success && upcomingSessions.data
+        ? upcomingSessions.data
+        : [];
+
     return (
       <View style={styles.container}>
         <View style={styles.selectedContainer}>
@@ -103,6 +121,59 @@ export default function CustomerSearchInput({
             <Text style={styles.clearButtonText}>Change</Text>
           </Pressable>
         </View>
+
+        {sessions.length > 0 && (
+          <View style={styles.upcomingSessionsContainer}>
+            <View style={styles.upcomingSessionsHeader}>
+              <Calendar size={16} color="#8b5cf6" />
+              <Text style={styles.upcomingSessionsTitle}>
+                Upcoming Appointments
+              </Text>
+            </View>
+            {sessions.map((session) => {
+              const daysUntil = session.next_recommended_date
+                ? Math.ceil(
+                    (new Date(session.next_recommended_date).getTime() -
+                      new Date().getTime()) /
+                      (1000 * 60 * 60 * 24)
+                  )
+                : null;
+
+              return (
+                <View key={session.session_id} style={styles.sessionItem}>
+                  <Text style={styles.sessionService}>
+                    {session.service_title}
+                  </Text>
+                  <Text style={styles.sessionStep}>
+                    Next:{" "}
+                    {session.next_step_label || `Step ${session.current_step}`}
+                  </Text>
+                  {session.next_recommended_date && (
+                    <Text style={styles.sessionDate}>
+                      Recommended:{" "}
+                      {new Date(
+                        session.next_recommended_date
+                      ).toLocaleDateString()}
+                      {daysUntil !== null && daysUntil >= 0 && (
+                        <Text style={styles.sessionDays}>
+                          {" "}
+                          (
+                          {daysUntil === 0
+                            ? "Today"
+                            : daysUntil === 1
+                            ? "Tomorrow"
+                            : `in ${daysUntil} days`}
+                          )
+                        </Text>
+                      )}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {error && <Text style={styles.errorText}>{error}</Text>}
       </View>
     );
@@ -132,30 +203,32 @@ export default function CustomerSearchInput({
       </View>
 
       {showResults && customers.length > 0 && (
-        <ScrollView
-          style={styles.resultsContainer}
-          contentContainerStyle={styles.resultsContent}
-          showsVerticalScrollIndicator={true}
-          nestedScrollEnabled={true}
-        >
-          {customers.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => handleSelectCustomer(item)}
-              style={styles.resultItem}
-            >
-              <View style={styles.resultItemContent}>
-                <User size={18} color="#6b7280" />
-                <View style={styles.resultItemText}>
-                  <Text style={styles.resultItemName}>{item.name}</Text>
-                  {item.email && (
-                    <Text style={styles.resultItemEmail}>{item.email}</Text>
-                  )}
+        <View style={styles.resultsShadowWrapper}>
+          <ScrollView
+            style={styles.resultsContainer}
+            contentContainerStyle={styles.resultsContent}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
+            {customers.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => handleSelectCustomer(item)}
+                style={styles.resultItem}
+              >
+                <View style={styles.resultItemContent}>
+                  <User size={18} color="#6b7280" />
+                  <View style={styles.resultItemText}>
+                    <Text style={styles.resultItemName}>{item.name}</Text>
+                    {item.email && (
+                      <Text style={styles.resultItemEmail}>{item.email}</Text>
+                    )}
+                  </View>
                 </View>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       )}
 
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -225,18 +298,29 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: scaleFont(14),
   },
-  resultsContainer: {
+  resultsShadowWrapper: {
     marginTop: scaleDimension(8),
+    borderRadius: scaleDimension(12),
+    backgroundColor: "white",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: scaleDimension(2) },
+        shadowOpacity: 0.1,
+        shadowRadius: scaleDimension(4),
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  resultsContainer: {
     borderWidth: 1,
     borderColor: "#e5e7eb",
     borderRadius: scaleDimension(12),
     backgroundColor: "white",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: scaleDimension(2) },
-    shadowOpacity: 0.1,
-    shadowRadius: scaleDimension(4),
-    elevation: 3,
     maxHeight: scaleDimension(200),
+    overflow: "hidden",
   },
   resultsContent: {
     paddingBottom: scaleDimension(8),
@@ -270,5 +354,50 @@ const styles = StyleSheet.create({
     fontSize: scaleFont(12),
     marginTop: scaleDimension(4),
     marginLeft: scaleDimension(4),
+  },
+  upcomingSessionsContainer: {
+    marginTop: scaleDimension(12),
+    backgroundColor: "#f3f4f6",
+    borderRadius: scaleDimension(8),
+    padding: scaleDimension(12),
+    borderLeftWidth: 3,
+    borderLeftColor: "#8b5cf6",
+  },
+  upcomingSessionsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(8),
+    marginBottom: scaleDimension(8),
+  },
+  upcomingSessionsTitle: {
+    fontSize: scaleFont(14),
+    fontWeight: "600",
+    color: "#111827",
+  },
+  sessionItem: {
+    marginTop: scaleDimension(8),
+    paddingTop: scaleDimension(8),
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  sessionService: {
+    fontSize: scaleFont(14),
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: scaleDimension(4),
+  },
+  sessionStep: {
+    fontSize: scaleFont(12),
+    color: "#6b7280",
+    marginBottom: scaleDimension(2),
+  },
+  sessionDate: {
+    fontSize: scaleFont(12),
+    color: "#374151",
+  },
+  sessionDays: {
+    fontSize: scaleFont(12),
+    color: "#8b5cf6",
+    fontWeight: "500",
   },
 });

@@ -29,6 +29,7 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -115,7 +116,10 @@ function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.modalBackdrop} onPress={onClose} />
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
@@ -192,7 +196,7 @@ function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -245,7 +249,10 @@ function ChangeNameModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
         <Pressable style={styles.modalBackdrop} onPress={onClose} />
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
@@ -294,7 +301,7 @@ function ChangeNameModal({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -327,8 +334,21 @@ export default function ProfileScreen() {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
-          await supabase.auth.signOut();
-          router.replace("/");
+          try {
+            // Clear all query cache before signing out
+            queryClient.clear();
+
+            // Attempt to sign out - even if it fails due to server errors, clear local state
+            await supabase.auth.signOut().catch((error) => {
+              console.warn("Sign out error (continuing anyway):", error);
+              // Continue with sign out even if there's an error
+            });
+          } catch (error) {
+            console.warn("Sign out error (continuing anyway):", error);
+          } finally {
+            // Always navigate to login page, even if sign out had errors
+            router.replace("/");
+          }
         },
       },
     ]);
@@ -375,28 +395,30 @@ export default function ProfileScreen() {
           </View>
 
           {/* Profile Card */}
-          <View style={styles.profileCardContainer}>
-            <LinearGradient
-              colors={["#ec4899", "#d946ef", "#a855f7"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.profileCardGradient}
-            >
-              <View style={styles.profileCardHeader}>
-                <View style={styles.avatarContainer}>
-                  <Text style={styles.avatarText}>{initials}</Text>
-                </View>
-                <View style={styles.profileInfo}>
-                  <Text style={styles.profileName}>{displayName}</Text>
-                  <Text style={styles.profileEmail}>{displayEmail}</Text>
-                  <View style={styles.badgeContainer}>
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{roleDisplay}</Text>
+          <View style={styles.profileCardShadowWrapper}>
+            <View style={styles.profileCardContainer}>
+              <LinearGradient
+                colors={["#ec4899", "#d946ef", "#a855f7"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.profileCardGradient}
+              >
+                <View style={styles.profileCardHeader}>
+                  <View style={styles.avatarContainer}>
+                    <Text style={styles.avatarText}>{initials}</Text>
+                  </View>
+                  <View style={styles.profileInfo}>
+                    <Text style={styles.profileName}>{displayName}</Text>
+                    <Text style={styles.profileEmail}>{displayEmail}</Text>
+                    <View style={styles.badgeContainer}>
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{roleDisplay}</Text>
+                      </View>
                     </View>
                   </View>
                 </View>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </View>
           </View>
 
           {/* Earnings Section */}
@@ -456,36 +478,40 @@ export default function ProfileScreen() {
             <ResponsiveText variant="sm" style={styles.sectionTitle}>
               ACCOUNT SETTINGS
             </ResponsiveText>
-            <View style={styles.menuGroup}>
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => setShowChangeName(true)}
-              >
-                <View style={styles.menuIconContainer}>
-                  <User size={20} color="#ec4899" />
-                </View>
-                <View style={styles.menuContent}>
-                  <Text style={styles.menuTitle}>Change Name</Text>
-                  <Text style={styles.menuSubtitle}>
-                    Update your display name
-                  </Text>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </Pressable>
-              <View style={styles.menuDivider} />
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => setShowChangePassword(true)}
-              >
-                <View style={styles.menuIconContainer}>
-                  <Lock size={20} color="#ec4899" />
-                </View>
-                <View style={styles.menuContent}>
-                  <Text style={styles.menuTitle}>Change Password</Text>
-                  <Text style={styles.menuSubtitle}>Update your password</Text>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" />
-              </Pressable>
+            <View style={styles.menuGroupShadowWrapper}>
+              <View style={styles.menuGroup}>
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={() => setShowChangeName(true)}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <User size={20} color="#ec4899" />
+                  </View>
+                  <View style={styles.menuContent}>
+                    <Text style={styles.menuTitle}>Change Name</Text>
+                    <Text style={styles.menuSubtitle}>
+                      Update your display name
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color="#9CA3AF" />
+                </Pressable>
+                <View style={styles.menuDivider} />
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={() => setShowChangePassword(true)}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Lock size={20} color="#ec4899" />
+                  </View>
+                  <View style={styles.menuContent}>
+                    <Text style={styles.menuTitle}>Change Password</Text>
+                    <Text style={styles.menuSubtitle}>
+                      Update your password
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color="#9CA3AF" />
+                </Pressable>
+              </View>
             </View>
           </View>
 
@@ -550,17 +576,21 @@ export default function ProfileScreen() {
 
           {/* Sign Out */}
           <View style={styles.section}>
-            <View style={styles.menuGroup}>
-              <Pressable style={styles.menuItem} onPress={handleLogout}>
-                <View style={[styles.menuIconContainer, styles.menuIconDanger]}>
-                  <LogOut size={20} color="#ef4444" />
-                </View>
-                <View style={styles.menuContent}>
-                  <Text style={[styles.menuTitle, styles.menuTitleDanger]}>
-                    Sign Out
-                  </Text>
-                </View>
-              </Pressable>
+            <View style={styles.menuGroupShadowWrapper}>
+              <View style={styles.menuGroup}>
+                <Pressable style={styles.menuItem} onPress={handleLogout}>
+                  <View
+                    style={[styles.menuIconContainer, styles.menuIconDanger]}
+                  >
+                    <LogOut size={20} color="#ef4444" />
+                  </View>
+                  <View style={styles.menuContent}>
+                    <Text style={[styles.menuTitle, styles.menuTitleDanger]}>
+                      Sign Out
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
             </View>
           </View>
 
@@ -613,11 +643,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#111827",
   },
-  profileCardContainer: {
+  profileCardShadowWrapper: {
     marginHorizontal: scaleDimension(24),
     marginBottom: scaleDimension(24),
     borderRadius: scaleDimension(24),
-    overflow: "hidden",
+    backgroundColor: "white", // Needed for elevation
     ...Platform.select({
       ios: {
         shadowColor: "#ec4899",
@@ -629,6 +659,10 @@ const styles = StyleSheet.create({
         elevation: 8,
       },
     }),
+  },
+  profileCardContainer: {
+    borderRadius: scaleDimension(24),
+    overflow: "hidden",
   },
   profileCardGradient: {
     padding: scaleDimension(24),
@@ -734,10 +768,9 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "700",
   },
-  menuGroup: {
-    backgroundColor: "white",
+  menuGroupShadowWrapper: {
     borderRadius: scaleDimension(16),
-    overflow: "hidden",
+    backgroundColor: "white",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -749,6 +782,10 @@ const styles = StyleSheet.create({
         elevation: 3,
       },
     }),
+  },
+  menuGroup: {
+    borderRadius: scaleDimension(16),
+    overflow: "hidden",
   },
   menuItem: {
     flexDirection: "row",

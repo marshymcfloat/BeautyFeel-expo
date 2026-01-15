@@ -1,4 +1,11 @@
+import ManualDeductionFormModal from "@/components/manage/ManualDeductionFormModal";
+import { queryClient } from "@/components/Providers/TanstackProvider";
 import SalesChart from "@/components/sales/SalesChart";
+import { useToast } from "@/components/ui/toast";
+import {
+  deleteManualDeduction,
+  getManualDeductions,
+} from "@/lib/actions/manualDeductionActions";
 import {
   getAppointmentStats,
   getSalesData,
@@ -9,21 +16,24 @@ import {
 import { useAuth } from "@/lib/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils/currency";
 import { scaleDimension, scaleFont } from "@/lib/utils/responsive";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  BarChart3,
   Calendar,
   CheckCircle2,
   Clock,
   Coins,
   CreditCard,
+  Plus,
+  RefreshCw,
+  Trash2,
   Users,
   XCircle,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -31,6 +41,8 @@ import {
   Text,
   View,
 } from "react-native";
+
+// --- Components ---
 
 interface StatCardProps {
   title: string;
@@ -69,7 +81,6 @@ function TimeSpanSelector({
   onSelect: (span: TimeSpan) => void;
 }) {
   const options: { label: string; value: TimeSpan }[] = [
-    { label: "All", value: "all" },
     { label: "Month", value: "month" },
     { label: "Week", value: "week" },
     { label: "Today", value: "day" },
@@ -100,78 +111,154 @@ function TimeSpanSelector({
   );
 }
 
+// --- Main Screen ---
+
 export default function SalesScreen() {
-  const { hasRole, loading: authLoading } = useAuth();
+  const { hasRole, loading: authLoading, employee } = useAuth();
   const isOwner = hasRole("owner");
   const [timeSpan, setTimeSpan] = useState<TimeSpan>("month");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showDeductionModal, setShowDeductionModal] = useState(false);
+  const [editingDeduction, setEditingDeduction] = useState<any>(null);
+  const toast = useToast();
 
-  // Fetch sales data
+  // Get owner's branch for filtering
+  const ownerBranch = employee?.branch || null;
+
+  // Queries
   const {
     data: salesData,
     isLoading: salesLoading,
-    error: salesError,
+    refetch: refetchSalesData,
   } = useQuery({
-    queryKey: ["salesData", timeSpan],
-    queryFn: () => getSalesData(timeSpan),
+    queryKey: ["salesData", timeSpan, ownerBranch],
+    queryFn: () => getSalesData(timeSpan, ownerBranch),
     enabled: isOwner,
   });
 
-  // Fetch sales stats
-  const { data: salesStats, isLoading: statsLoading } = useQuery({
-    queryKey: ["salesStats", timeSpan],
-    queryFn: () => getSalesStats(timeSpan),
+  const {
+    data: salesStats,
+    isLoading: statsLoading,
+    refetch: refetchSalesStats,
+  } = useQuery({
+    queryKey: ["salesStats", timeSpan, ownerBranch],
+    queryFn: () => getSalesStats(timeSpan, ownerBranch),
     enabled: isOwner,
   });
 
-  // Fetch appointment stats
   const {
     data: appointmentStats,
     isLoading: appointmentLoading,
-    error: appointmentError,
+    refetch: refetchAppointmentStats,
   } = useQuery({
-    queryKey: ["appointmentStats", timeSpan],
-    queryFn: () => getAppointmentStats(timeSpan),
+    queryKey: ["appointmentStats", timeSpan, ownerBranch],
+    queryFn: () => getAppointmentStats(timeSpan, ownerBranch),
     enabled: isOwner,
   });
 
-  // Fetch sales summary (with/without deductions)
-  const { data: salesSummaryData, isLoading: summaryLoading } = useQuery({
-    queryKey: ["salesSummary", timeSpan],
-    queryFn: () => getSalesSummary(timeSpan),
+  const {
+    data: salesSummaryData,
+    isLoading: summaryLoading,
+    refetch: refetchSalesSummary,
+  } = useQuery({
+    queryKey: ["salesSummary", timeSpan, ownerBranch],
+    queryFn: () => getSalesSummary(timeSpan, ownerBranch),
     enabled: isOwner,
   });
+
+  // Get manual deductions
+  const startDate = (() => {
+    const now = new Date();
+    switch (timeSpan) {
+      case "day":
+        return new Date(now.setHours(0, 0, 0, 0));
+      case "week":
+        return new Date(now.setDate(now.getDate() - 7));
+      case "month":
+        return new Date(now.setMonth(now.getMonth() - 1));
+      default:
+        return undefined;
+    }
+  })();
+
+  const {
+    data: manualDeductionsData,
+    isLoading: deductionsLoading,
+    refetch: refetchDeductions,
+  } = useQuery({
+    queryKey: ["manualDeductions", timeSpan, ownerBranch],
+    queryFn: () => getManualDeductions(startDate, undefined, ownerBranch),
+    enabled: isOwner,
+  });
+
+  const deleteDeductionMutation = useMutation({
+    mutationFn: deleteManualDeduction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manualDeductions"] });
+      queryClient.invalidateQueries({ queryKey: ["salesSummary"] });
+      toast.success("Success", "Deduction deleted successfully");
+    },
+    onError: (error: any) => {
+      toast.error("Error", error.message || "Failed to delete deduction");
+    },
+  });
+
+  const handleDeleteDeduction = (id: string) => {
+    Alert.alert(
+      "Delete Deduction",
+      "Are you sure you want to delete this deduction?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteDeductionMutation.mutate(id),
+        },
+      ]
+    );
+  };
 
   const [showNetSales, setShowNetSales] = useState(false);
   const salesSummary = salesSummaryData?.data;
-
-  if (authLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ec4899" />
-      </View>
-    );
-  }
-
-  if (!isOwner) {
-    return (
-      <View style={styles.restrictedContainer}>
-        <Text style={styles.restrictedText}>
-          This section is only available for owners.
-        </Text>
-      </View>
-    );
-  }
-
-  const isLoading = salesLoading || statsLoading || appointmentLoading;
+  const isLoading =
+    salesLoading || statsLoading || appointmentLoading || summaryLoading;
   const stats = salesStats?.data;
   const appointments = appointmentStats?.data;
+
+  const handleRefetch = async () => {
+    if (!isOwner) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchSalesData(),
+        refetchSalesStats(),
+        refetchAppointmentStats(),
+        refetchSalesSummary(),
+        refetchDeductions(),
+      ]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  if (authLoading)
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator color="#ec4899" />
+      </View>
+    );
+  if (!isOwner)
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Access Restricted</Text>
+      </View>
+    );
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#fdf2f8", "#fce7f3", "#f9fafb"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        colors={["#fefce8", "#fce7f3", "#f8fafc"]} // Softer, premium gradient
+        locations={[0, 0.4, 1]}
         style={styles.backgroundGradient}
       >
         <ScrollView
@@ -181,75 +268,42 @@ export default function SalesScreen() {
         >
           {/* Header */}
           <View style={styles.headerContainer}>
-            <View style={styles.headerLeft}>
-              <View style={styles.iconBadge}>
-                <BarChart3 size={20} color="#ec4899" />
-              </View>
-              <View>
-                <Text style={styles.headerTitle}>Analytics</Text>
-                <Text style={styles.headerSubtitle}>Business Overview</Text>
-              </View>
+            <View>
+              <Text style={styles.headerTitle}>Dashboard</Text>
+              <Text style={styles.headerSubtitle}>Overview & Analytics</Text>
             </View>
             <View style={styles.headerRight}>
+              <View style={styles.refreshButtonShadowWrapper}>
+                <Pressable
+                  onPress={handleRefetch}
+                  disabled={isRefreshing || !isOwner}
+                  style={({ pressed }) => [
+                    styles.refreshButton,
+                    (pressed || isRefreshing || !isOwner) &&
+                      styles.refreshButtonPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[
+                      "rgba(236, 72, 153, 0.2)",
+                      "rgba(236, 72, 153, 0.1)",
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.refreshButtonGradient}
+                  >
+                    {isRefreshing ? (
+                      <ActivityIndicator size="small" color="#ec4899" />
+                    ) : (
+                      <RefreshCw size={18} color="#ec4899" />
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+              <View style={styles.headerSpacer} />
               <TimeSpanSelector selected={timeSpan} onSelect={setTimeSpan} />
             </View>
           </View>
-
-          {/* Hero Sales Card */}
-          {salesSummary && (
-            <View style={styles.heroCardContainer}>
-              <View style={styles.heroCard}>
-                <View style={styles.heroHeader}>
-                  <View>
-                    <Text style={styles.heroLabel}>
-                      {showNetSales ? "Net Sales" : "Gross Revenue"}
-                    </Text>
-                    <Text style={styles.heroAmount}>
-                      {formatCurrency(
-                        showNetSales
-                          ? salesSummary.netSales
-                          : salesSummary.totalSales
-                      )}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => setShowNetSales(!showNetSales)}
-                    style={styles.togglePill}
-                  >
-                    <Text style={styles.togglePillText}>
-                      {showNetSales ? "View Gross" : "View Net"}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.heroDivider} />
-
-                {/* Breakdown */}
-                <View style={styles.heroBreakdown}>
-                  <View style={styles.breakdownItem}>
-                    <Text style={styles.breakdownLabel}>Gross</Text>
-                    <Text style={styles.breakdownValue}>
-                      {formatCurrency(salesSummary.totalSales)}
-                    </Text>
-                  </View>
-                  {salesSummary.totalSalesDeductions > 0 && (
-                    <>
-                      <View style={styles.verticalDivider} />
-                      <View style={styles.breakdownItem}>
-                        <Text style={styles.breakdownLabel}>Deductions</Text>
-                        <Text
-                          style={[styles.breakdownValue, styles.textDanger]}
-                        >
-                          -{formatCurrency(salesSummary.totalSalesDeductions)}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                </View>
-              </View>
-            </View>
-          )}
 
           {/* Quick Stats Grid */}
           <View style={styles.sectionContainer}>
@@ -276,44 +330,37 @@ export default function SalesScreen() {
                 icon={<Coins size={18} color="#10b981" />}
                 color="#10b981"
               />
-              <StatCard
-                title="Completion"
-                value={
-                  isLoading || !appointments
-                    ? "-"
-                    : `${Math.round(
-                        (appointments.completed / (appointments.total || 1)) *
-                          100
-                      )}%`
-                }
-                icon={<CheckCircle2 size={18} color="#f59e0b" />}
-                color="#f59e0b"
-              />
             </View>
           </View>
 
-          {/* Sales Chart */}
+          {/* Sales Chart Section */}
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Sales Trend</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Sales Trend</Text>
+            </View>
+
             {isLoading ? (
-              <View style={styles.loadingBox}>
+              <View
+                style={[styles.loadingBox, { height: scaleDimension(240) }]}
+              >
                 <ActivityIndicator color="#ec4899" />
               </View>
-            ) : salesError ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>Could not load chart data</Text>
-              </View>
             ) : (
-              <SalesChart data={salesData?.data || []} timeSpan={timeSpan} />
+              // The component is now designed to fill this container width
+              <SalesChart
+                data={salesData?.data || []}
+                dataByBranch={salesData?.dataByBranch}
+                timeSpan={timeSpan}
+                ownerBranch={ownerBranch}
+              />
             )}
           </View>
 
-          {/* Appointment Status Cards */}
+          {/* Appointment Status */}
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Appointment Status</Text>
             {appointments && (
               <View style={styles.appointmentGrid}>
-                {/* Completed */}
                 <View style={[styles.statusCard, styles.statusCardGreen]}>
                   <View style={styles.statusHeader}>
                     <Text style={[styles.statusValue, styles.textGreen]}>
@@ -324,7 +371,6 @@ export default function SalesScreen() {
                   <Text style={styles.statusLabel}>Completed</Text>
                 </View>
 
-                {/* Pending */}
                 <View style={[styles.statusCard, styles.statusCardOrange]}>
                   <View style={styles.statusHeader}>
                     <Text style={[styles.statusValue, styles.textOrange]}>
@@ -335,7 +381,6 @@ export default function SalesScreen() {
                   <Text style={styles.statusLabel}>Pending</Text>
                 </View>
 
-                {/* Cancelled */}
                 <View style={[styles.statusCard, styles.statusCardRed]}>
                   <View style={styles.statusHeader}>
                     <Text style={[styles.statusValue, styles.textRed]}>
@@ -346,7 +391,6 @@ export default function SalesScreen() {
                   <Text style={styles.statusLabel}>Cancelled</Text>
                 </View>
 
-                {/* Total */}
                 <View style={[styles.statusCard, styles.statusCardBlue]}>
                   <View style={styles.statusHeader}>
                     <Text style={[styles.statusValue, styles.textBlue]}>
@@ -359,6 +403,147 @@ export default function SalesScreen() {
               </View>
             )}
           </View>
+
+          {/* Summary Card */}
+          {salesSummary && (
+            <View style={styles.sectionContainer}>
+              <View style={styles.heroCard}>
+                <View style={styles.heroHeader}>
+                  <View>
+                    <Text style={styles.heroLabel}>
+                      {showNetSales ? "Net Income" : "Gross Revenue"}
+                    </Text>
+                    <Text style={styles.heroAmount}>
+                      {formatCurrency(
+                        showNetSales
+                          ? salesSummary.netSales
+                          : salesSummary.totalSales
+                      )}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setShowNetSales(!showNetSales)}
+                    style={styles.togglePill}
+                  >
+                    <Text style={styles.togglePillText}>
+                      {showNetSales ? "Show Gross" : "Show Net"}
+                    </Text>
+                  </Pressable>
+                </View>
+                {(salesSummary.totalSalesDeductions > 0 ||
+                  salesSummary.totalManualDeductions > 0) && (
+                  <View style={styles.deductionsContainer}>
+                    {salesSummary.totalSalesDeductions > 0 && (
+                      <View style={styles.deductionRow}>
+                        <Text style={styles.deductionLabel}>
+                          Payslip Deductions:
+                        </Text>
+                        <Text style={styles.deductionText}>
+                          {formatCurrency(salesSummary.totalSalesDeductions)}
+                        </Text>
+                      </View>
+                    )}
+                    {salesSummary.totalManualDeductions > 0 && (
+                      <View style={styles.deductionRow}>
+                        <Text style={styles.deductionLabel}>
+                          Manual Deductions:
+                        </Text>
+                        <Text style={styles.deductionText}>
+                          {formatCurrency(salesSummary.totalManualDeductions)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Manual Deductions Section */}
+          {isOwner && (
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Manual Deductions</Text>
+                <Pressable
+                  onPress={() => {
+                    setEditingDeduction(null);
+                    setShowDeductionModal(true);
+                  }}
+                  style={styles.addButton}
+                >
+                  <Plus size={18} color="#ec4899" />
+                  <Text style={styles.addButtonText}>Add</Text>
+                </Pressable>
+              </View>
+              {deductionsLoading ? (
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator color="#ec4899" />
+                </View>
+              ) : manualDeductionsData?.data &&
+                manualDeductionsData.data.length > 0 ? (
+                <View style={styles.deductionsList}>
+                  {manualDeductionsData.data.map((deduction: any) => (
+                    <View key={deduction.id} style={styles.deductionItem}>
+                      <View style={styles.deductionItemContent}>
+                        <View style={styles.deductionItemHeader}>
+                          <Text style={styles.deductionItemDescription}>
+                            {deduction.description}
+                          </Text>
+                          <Text style={styles.deductionItemAmount}>
+                            {formatCurrency(deduction.amount)}
+                          </Text>
+                        </View>
+                        <View style={styles.deductionItemMeta}>
+                          <Text style={styles.deductionItemBranch}>
+                            {deduction.branch}
+                          </Text>
+                          <Text style={styles.deductionItemDate}>
+                            {new Date(
+                              deduction.deduction_date
+                            ).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.deductionItemActions}>
+                        <Pressable
+                          onPress={() => {
+                            setEditingDeduction(deduction);
+                            setShowDeductionModal(true);
+                          }}
+                          style={styles.editButton}
+                        >
+                          <Text style={styles.editButtonText}>Edit</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleDeleteDeduction(deduction.id)}
+                          style={styles.deleteButton}
+                        >
+                          <Trash2 size={16} color="#ef4444" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyDeductions}>
+                  <Text style={styles.emptyDeductionsText}>
+                    No manual deductions for this period
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Manual Deduction Form Modal */}
+          <ManualDeductionFormModal
+            visible={showDeductionModal}
+            onClose={() => {
+              setShowDeductionModal(false);
+              setEditingDeduction(null);
+            }}
+            existingDeduction={editingDeduction}
+            defaultBranch={ownerBranch}
+          />
         </ScrollView>
       </LinearGradient>
     </View>
@@ -368,7 +553,7 @@ export default function SalesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: "#F9FAFB",
   },
   backgroundGradient: {
     flex: 1,
@@ -377,81 +562,78 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: scaleDimension(100),
+    paddingBottom: scaleDimension(120),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  restrictedContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: scaleDimension(24),
-  },
-  restrictedText: {
-    fontSize: scaleFont(16),
-    color: "#6b7280",
-    textAlign: "center",
-  },
 
   // Header
   headerContainer: {
     paddingHorizontal: scaleDimension(24),
-    paddingTop: scaleDimension(24),
-    paddingBottom: scaleDimension(16),
-    flexDirection: "row", // Changed to row for side-by-side title and tabs if space allows, or column
-    flexWrap: "wrap",
+    paddingTop: scaleDimension(20), // Reduced top padding
+    paddingBottom: scaleDimension(24),
+    flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: scaleDimension(16),
+    alignItems: "flex-end",
   },
-  headerLeft: {
+  headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: scaleDimension(12),
+    gap: scaleDimension(8),
   },
-  iconBadge: {
+  headerSpacer: {
+    width: scaleDimension(8),
+  },
+  refreshButtonShadowWrapper: {
     width: scaleDimension(40),
     height: scaleDimension(40),
-    borderRadius: scaleDimension(12),
-    backgroundColor: "#fdf2f8",
+    borderRadius: scaleDimension(20),
+    backgroundColor: "white", // Assuming white background or transparent if needed but elevation needs solid bg usually
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4 },
+      android: { elevation: 1 },
+    }),
+  },
+  refreshButton: {
+    width: "100%",
+    height: "100%",
+    borderRadius: scaleDimension(20),
+    overflow: "hidden",
+  },
+  refreshButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
+  },
+  refreshButtonGradient: {
+    width: scaleDimension(40),
+    height: scaleDimension(40),
+    borderRadius: scaleDimension(20),
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: scaleFont(20),
+    fontSize: scaleFont(24),
     fontWeight: "800",
     color: "#111827",
-    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: scaleFont(12),
+    fontSize: scaleFont(13),
     color: "#6b7280",
-    fontWeight: "500",
-  },
-  headerRight: {
-    // If needed to push tabs to the right
+    marginTop: 2,
   },
 
-  // Time Span Selector
+  // Time Selector
   timeSpanContainer: {
     flexDirection: "row",
     backgroundColor: "white",
-    borderRadius: scaleDimension(12),
-    padding: scaleDimension(4),
-    gap: scaleDimension(2),
+    borderRadius: scaleDimension(10),
+    padding: scaleDimension(3),
     ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
+      ios: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4 },
+      android: { elevation: 1 },
     }),
   },
   timeSpanButton: {
@@ -471,125 +653,43 @@ const styles = StyleSheet.create({
     color: "white",
   },
 
-  // Hero Card
-  heroCardContainer: {
-    paddingHorizontal: scaleDimension(24),
+  // Section Layouts
+  sectionContainer: {
+    paddingHorizontal: scaleDimension(24), // Consistent padding
     marginBottom: scaleDimension(24),
   },
-  heroCard: {
-    backgroundColor: "white",
-    borderRadius: scaleDimension(24),
-    padding: scaleDimension(20),
-    ...Platform.select({
-      ios: {
-        shadowColor: "#ec4899",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  heroHeader: {
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: scaleDimension(16),
-  },
-  heroLabel: {
-    fontSize: scaleFont(14),
-    color: "#6b7280",
-    fontWeight: "600",
-    marginBottom: scaleDimension(4),
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  heroAmount: {
-    fontSize: scaleFont(32),
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: -1,
-  },
-  togglePill: {
-    backgroundColor: "#f3f4f6",
-    paddingHorizontal: scaleDimension(12),
-    paddingVertical: scaleDimension(6),
-    borderRadius: scaleDimension(20),
-  },
-  togglePillText: {
-    fontSize: scaleFont(12),
-    fontWeight: "600",
-    color: "#4b5563",
-  },
-  heroDivider: {
-    height: 1,
-    backgroundColor: "#f3f4f6",
-    marginBottom: scaleDimension(16),
-  },
-  heroBreakdown: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: scaleDimension(16),
-  },
-  verticalDivider: {
-    width: 1,
-    height: scaleDimension(24),
-    backgroundColor: "#e5e7eb",
-  },
-  breakdownItem: {
-    gap: scaleDimension(2),
-  },
-  breakdownLabel: {
-    fontSize: scaleFont(11),
-    color: "#9ca3af",
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  breakdownValue: {
-    fontSize: scaleFont(14),
-    fontWeight: "700",
-    color: "#374151",
-  },
-  textDanger: {
-    color: "#ef4444",
-  },
-
-  // Grid Layouts
-  sectionContainer: {
-    paddingHorizontal: scaleDimension(24),
-    marginBottom: scaleDimension(24),
+    marginBottom: scaleDimension(12),
   },
   sectionTitle: {
     fontSize: scaleFont(16),
     fontWeight: "700",
-    color: "#111827",
+    color: "#1f2937",
     marginBottom: scaleDimension(12),
   },
+
+  // Grid
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: scaleDimension(12),
   },
-
-  // Stat Card
   statCard: {
-    flex: 1,
-    minWidth: "45%", // 2 columns
+    width: "48%", // Ensure 2 columns fit perfectly with gap
     backgroundColor: "white",
-    borderRadius: scaleDimension(16),
+    borderRadius: scaleDimension(20),
     padding: scaleDimension(16),
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+        shadowColor: "#ec4899",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
       },
-      android: {
-        elevation: 2,
-      },
+      android: { elevation: 2 },
     }),
   },
   statHeader: {
@@ -597,80 +697,48 @@ const styles = StyleSheet.create({
   },
   statIconContainer: {
     alignSelf: "flex-start",
-    padding: scaleDimension(8),
-    borderRadius: scaleDimension(10),
+    padding: scaleDimension(10),
+    borderRadius: scaleDimension(14),
   },
   statContent: {
-    gap: scaleDimension(4),
+    gap: scaleDimension(2),
   },
   statValue: {
-    fontSize: scaleFont(18),
-    fontWeight: "700",
+    fontSize: scaleFont(20),
+    fontWeight: "800",
     color: "#111827",
   },
   statTitle: {
     fontSize: scaleFont(12),
     color: "#6b7280",
-    fontWeight: "500",
-  },
-
-  // Loading/Error
-  loadingBox: {
-    height: scaleDimension(200),
-    backgroundColor: "white",
-    borderRadius: scaleDimension(16),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  errorBox: {
-    height: scaleDimension(200),
-    backgroundColor: "#fef2f2",
-    borderRadius: scaleDimension(16),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  errorText: {
-    color: "#ef4444",
     fontWeight: "600",
   },
 
-  // Appointment Status Grid
+  // Status Cards
   appointmentGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: scaleDimension(12),
   },
   statusCard: {
-    flex: 1,
-    minWidth: "45%",
-    padding: scaleDimension(14),
-    borderRadius: scaleDimension(16),
+    width: "48%",
+    padding: scaleDimension(16),
+    borderRadius: scaleDimension(20),
     borderWidth: 1,
   },
-  statusCardGreen: {
-    backgroundColor: "#f0fdf4",
-    borderColor: "#bbf7d0",
-  },
-  statusCardOrange: {
-    backgroundColor: "#fff7ed",
-    borderColor: "#fed7aa",
-  },
-  statusCardRed: {
-    backgroundColor: "#fef2f2",
-    borderColor: "#fecaca",
-  },
-  statusCardBlue: {
-    backgroundColor: "#eff6ff",
-    borderColor: "#bfdbfe",
-  },
+  statusCardGreen: { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" },
+  statusCardOrange: { backgroundColor: "#fff7ed", borderColor: "#fed7aa" },
+  statusCardRed: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
+  statusCardBlue: { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" },
+
   statusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: scaleDimension(4),
+    marginBottom: scaleDimension(6),
   },
   statusValue: {
-    fontSize: scaleFont(20),
+    fontSize: scaleFont(22),
     fontWeight: "800",
   },
   statusLabel: {
@@ -679,7 +747,175 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   textGreen: { color: "#166534" },
-  textOrange: { color: "#9a3412" },
+  textOrange: { color: "#c2410c" },
   textRed: { color: "#991b1b" },
   textBlue: { color: "#1e40af" },
+
+  // Hero/Summary Card
+  heroCard: {
+    backgroundColor: "white",
+    borderRadius: scaleDimension(20),
+    padding: scaleDimension(20),
+    borderWidth: 1,
+    borderColor: "#f3f4f6",
+  },
+  heroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  heroLabel: {
+    fontSize: scaleFont(12),
+    color: "#6b7280",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  heroAmount: {
+    fontSize: scaleFont(24),
+    fontWeight: "800",
+    color: "#111827",
+  },
+  togglePill: {
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  togglePillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4b5563",
+  },
+  deductionsContainer: {
+    marginTop: 12,
+    gap: 6,
+  },
+  deductionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  deductionLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    fontWeight: "600",
+  },
+  deductionText: {
+    fontSize: 12,
+    color: "#ef4444",
+    fontWeight: "600",
+  },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleDimension(6),
+    backgroundColor: "#fdf2f8",
+    paddingHorizontal: scaleDimension(12),
+    paddingVertical: scaleDimension(6),
+    borderRadius: scaleDimension(8),
+    borderWidth: 1,
+    borderColor: "#fce7f3",
+  },
+  addButtonText: {
+    fontSize: scaleFont(12),
+    fontWeight: "600",
+    color: "#ec4899",
+  },
+  deductionsList: {
+    gap: scaleDimension(12),
+  },
+  deductionItem: {
+    backgroundColor: "white",
+    borderRadius: scaleDimension(12),
+    padding: scaleDimension(16),
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  deductionItemContent: {
+    flex: 1,
+    gap: scaleDimension(4),
+  },
+  deductionItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  deductionItemDescription: {
+    fontSize: scaleFont(15),
+    fontWeight: "600",
+    color: "#111827",
+    flex: 1,
+  },
+  deductionItemAmount: {
+    fontSize: scaleFont(16),
+    fontWeight: "700",
+    color: "#ef4444",
+  },
+  deductionItemMeta: {
+    flexDirection: "row",
+    gap: scaleDimension(12),
+    alignItems: "center",
+  },
+  deductionItemBranch: {
+    fontSize: scaleFont(12),
+    color: "#6b7280",
+    fontWeight: "500",
+  },
+  deductionItemDate: {
+    fontSize: scaleFont(12),
+    color: "#9ca3af",
+  },
+  deductionItemActions: {
+    flexDirection: "row",
+    gap: scaleDimension(8),
+    alignItems: "center",
+    marginLeft: scaleDimension(12),
+  },
+  editButton: {
+    paddingHorizontal: scaleDimension(12),
+    paddingVertical: scaleDimension(6),
+    backgroundColor: "#f3f4f6",
+    borderRadius: scaleDimension(6),
+  },
+  editButtonText: {
+    fontSize: scaleFont(12),
+    fontWeight: "600",
+    color: "#4b5563",
+  },
+  deleteButton: {
+    padding: scaleDimension(6),
+  },
+  emptyDeductions: {
+    backgroundColor: "#f9fafb",
+    borderRadius: scaleDimension(12),
+    padding: scaleDimension(24),
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderStyle: "dashed",
+  },
+  emptyDeductionsText: {
+    fontSize: scaleFont(14),
+    color: "#6b7280",
+  },
+  loadingBox: {
+    backgroundColor: "white",
+    borderRadius: scaleDimension(20),
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

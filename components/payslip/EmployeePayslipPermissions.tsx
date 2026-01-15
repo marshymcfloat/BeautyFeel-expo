@@ -1,4 +1,5 @@
 import { ResponsiveText } from "@/components/ui/ResponsiveText";
+import type { Database } from "@/database.types";
 import { getAllEmployees } from "@/lib/actions/employeeActions";
 import { toggleEmployeePayslipPermission } from "@/lib/actions/payslipActions";
 import {
@@ -21,13 +22,19 @@ import {
 import { queryClient } from "../Providers/TanstackProvider";
 import { useToast } from "../ui/toast";
 
-export default function EmployeePayslipPermissions() {
+type Branch = Database["public"]["Enums"]["branch"];
+
+export default function EmployeePayslipPermissions({
+  ownerBranch,
+}: {
+  ownerBranch?: Branch | null;
+}) {
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
 
   const { data: employeesData, isLoading } = useQuery({
-    queryKey: ["all-employees"],
-    queryFn: getAllEmployees,
+    queryKey: ["all-employees", ownerBranch],
+    queryFn: () => getAllEmployees(ownerBranch || null),
   });
 
   const toggleMutation = useMutation({
@@ -41,6 +48,7 @@ export default function EmployeePayslipPermissions() {
     onSuccess: (result, variables) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ["all-employees"] });
+        queryClient.invalidateQueries({ queryKey: ["payslip-requests"] });
         toast.success(
           "Permission Updated",
           `Employee can ${
@@ -343,6 +351,7 @@ const styles = StyleSheet.create({
     borderRadius: scaleDimension(20),
     backgroundColor: "#ec4899",
     alignItems: "center",
+
     justifyContent: "center",
   },
   employeeAvatarText: {

@@ -29,7 +29,11 @@ import GiftCertificateFormModal from "./GiftCertificateFormModal";
 
 type GiftCertificateStatus = "ACTIVE" | "USED" | "EXPIRED";
 
-export default function ManageGiftCertificates() {
+export default function ManageGiftCertificates({
+  onRefetchReady,
+}: {
+  onRefetchReady?: (refetch: () => void) => void;
+}) {
   const [showGiftCertificateModal, setShowGiftCertificateModal] = useState(false);
   const toast = useToast();
 
@@ -47,6 +51,13 @@ export default function ManageGiftCertificates() {
   const giftCertificates: GiftCertificateWithRelations[] = giftCertificatesData?.success
     ? (giftCertificatesData.data as GiftCertificateWithRelations[]) || []
     : [];
+
+  // Expose refetch function to parent
+  React.useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(() => refetchGiftCertificates());
+    }
+  }, [onRefetchReady, refetchGiftCertificates]);
 
   const deleteMutation = useMutation({
     mutationFn: deleteGiftCertificateAction,
